@@ -1,0 +1,15 @@
+* { box-sizing: border-box; }
+
+:root {
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: #16221b;
+  background: #e7ede8;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button { font: inherit; }
