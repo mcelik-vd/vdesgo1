@@ -152,7 +152,12 @@ export function WorkspacePage() {
     }
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(currentUser.username)}`)
+    fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(currentUser.username)}`, {
+      headers: {
+        'x-vdesgo-account-type': currentUser.accountType || '',
+        'x-vdesgo-username': currentUser.username,
+      },
+    })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((permissions: Record<string, DistributorModuleAccess>) => setDistributorAccess(permissions))
       .catch(() => setDistributorAccess({}))

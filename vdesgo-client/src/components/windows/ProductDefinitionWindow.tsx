@@ -56,14 +56,22 @@ export function ProductDefinitionWindow() {
   const [priceForm, setPriceForm] = useState({ productCode: '', productName: '', startDate: '', endDate: '', purchasePrice: '', salesPrice: '', soundReturnPrice: '', damagedReturnPrice: '', recommendedSalesPrice: '', status: 'Aktif' })
   const [error, setError] = useState('')
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const authHeaders = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('vdesgo-user') || '{}')
+      return { 'x-vdesgo-account-type': user.accountType || '', 'x-vdesgo-username': user.username || '' }
+    } catch {
+      return { 'x-vdesgo-account-type': '', 'x-vdesgo-username': '' }
+    }
+  })()
 
   useEffect(() => {
     Promise.all([
-      fetch(`${apiUrl}/data/products`).then((response) => response.json()),
-      fetch(`${apiUrl}/data/productGroups`).then((response) => response.json()),
-      fetch(`${apiUrl}/data/productTypes`).then((response) => response.json()),
-      fetch(`${apiUrl}/data/prices`).then((response) => response.json()),
-      fetch(`${apiUrl}/data/productUnits`).then((response) => response.json()),
+      fetch(`${apiUrl}/data/products`, { headers: authHeaders }).then((response) => response.json()),
+      fetch(`${apiUrl}/data/productGroups`, { headers: authHeaders }).then((response) => response.json()),
+      fetch(`${apiUrl}/data/productTypes`, { headers: authHeaders }).then((response) => response.json()),
+      fetch(`${apiUrl}/data/prices`, { headers: authHeaders }).then((response) => response.json()),
+      fetch(`${apiUrl}/data/productUnits`, { headers: authHeaders }).then((response) => response.json()),
     ])
       .then(([productData, groupData, typeData, priceData, unitData]) => {
         if (Array.isArray(productData)) setProducts(productData)
@@ -78,7 +86,7 @@ export function ProductDefinitionWindow() {
   const request = async <T,>(method: 'POST' | 'PUT' | 'DELETE', resource: string, data?: unknown): Promise<T> => {
     const response = await fetch(`${apiUrl}/data/${resource}`, {
       method,
-      headers: data ? { 'Content-Type': 'application/json' } : undefined,
+      headers: data ? { ...authHeaders, 'Content-Type': 'application/json' } : authHeaders,
       body: data ? JSON.stringify(data) : undefined,
     })
     if (!response.ok) {

@@ -26,6 +26,14 @@ const unitNames = ['Adet', 'Kutu', 'Koli']
 
 export function PromotionPolicyWindow() {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const authHeaders = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('vdesgo-user') || '{}')
+      return { 'x-vdesgo-account-type': user.accountType || '', 'x-vdesgo-username': user.username || '' }
+    } catch {
+      return { 'x-vdesgo-account-type': '', 'x-vdesgo-username': '' }
+    }
+  })()
   const [tab, setTab] = useState('Politika Listesi')
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [form, setForm] = useState<PromotionForm>({ ...emptyForm, startDate: dateInDays(0), endDate: dateInDays(30) })
@@ -41,7 +49,7 @@ export function PromotionPolicyWindow() {
   const load = async () => {
     try {
       const resources = ['promotions', 'customerTypes', 'customerGroups', 'customers', 'productTypes', 'productGroups', 'products', 'productUnits']
-      const responses = await Promise.all(resources.map((resource) => fetch(`${apiUrl}/${resource === 'promotions' ? resource : `data/${resource}`}`)))
+      const responses = await Promise.all(resources.map((resource) => fetch(`${apiUrl}/${resource === 'promotions' ? resource : `data/${resource}`}`, { headers: authHeaders })))
       const data = await Promise.all(responses.map((response) => response.ok ? response.json() : Promise.reject()))
       setPromotions(data[0])
       setOptions({
@@ -71,7 +79,7 @@ export function PromotionPolicyWindow() {
     }
   }
   const nextCode = async () => {
-    const response = await fetch(`${apiUrl}/promotions/next-code`)
+    const response = await fetch(`${apiUrl}/promotions/next-code`, { headers: authHeaders })
     if (response.ok) update('code', (await response.json() as { code: string }).code)
   }
   const startNew = () => { setEditingId(null); setForm({ ...emptyForm, startDate: dateInDays(0), endDate: dateInDays(30) }); setTab('Yeni Politika'); void nextCode() }
@@ -80,7 +88,7 @@ export function PromotionPolicyWindow() {
     if (form.rewardType === 'free_goods' && form.rewardProductCodes.some((code) => !form.rewardProductUnits[code])) {
       setError('Her bedelsiz ürün için birim seçmelisiniz.'); return
     }
-    const response = await fetch(`${apiUrl}/promotions${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+    const response = await fetch(`${apiUrl}/promotions${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PUT' : 'POST', headers: { ...authHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
     if (!response.ok) { setError('Promosyon kaydedilemedi.'); return }
     await load(); setForm({ ...emptyForm, startDate: dateInDays(0), endDate: dateInDays(30) }); setEditingId(null); setTab('Politika Listesi')
   }
