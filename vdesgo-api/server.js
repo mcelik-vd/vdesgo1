@@ -402,6 +402,12 @@ const toResponseRow = (row, definition) => Object.fromEntries(
   definition.columns.map((column, index) => [column, toApiValue(row[definition.dbColumns[index]])]),
 )
 
+const normalizeResourceValue = (resource, column, value) => {
+  if (resource === 'customers' && column === 'areaM2') return value === '' || value == null ? null : Number(value)
+  if (resource === 'customers' && column === 'balance') return value === '' || value == null ? 0 : parseMoneyNumber(value)
+  return value
+}
+
 const accessError = (message, statusCode = 403) => Object.assign(new Error(message), { statusCode })
 
 const getRequestTenant = async (client, req) => {
@@ -1049,7 +1055,7 @@ app.post('/data/:resource', async (req, res) => {
   const isGeneratedKey = definition.key === 'id'
   const writeColumns = isGeneratedKey ? definition.columns.slice(1) : definition.columns
   const writeDbColumns = isGeneratedKey ? definition.dbColumns.slice(1) : definition.dbColumns
-  const values = writeColumns.map((column) => req.body?.[column] ?? (column === 'active' ? true : ''))
+  const values = writeColumns.map((column) => normalizeResourceValue(req.params.resource, column, req.body?.[column] ?? (column === 'active' ? true : '')))
   if (!values[0]) return res.status(400).json({ error: `${definition.key} is required` })
   const client = new pg.Client({ connectionString: databaseUrl })
   try {
@@ -1070,7 +1076,7 @@ app.post('/data/:resource', async (req, res) => {
 app.put('/data/:resource/:key', async (req, res) => {
   const definition = resourceDefinitions[req.params.resource]
   if (!definition || !databaseUrl) return res.status(404).json({ error: 'Resource not found' })
-  const values = definition.columns.slice(1).map((column) => req.body?.[column] ?? '')
+  const values = definition.columns.slice(1).map((column) => normalizeResourceValue(req.params.resource, column, req.body?.[column] ?? ''))
   const updates = definition.dbColumns.slice(1).map((column, index) => `${column} = $${index + 1}`).join(', ')
   const client = new pg.Client({ connectionString: databaseUrl })
   try {
