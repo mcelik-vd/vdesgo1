@@ -113,11 +113,19 @@ export function RoleAccessWindow() {
 
   const [accessMatrix, setAccessMatrix] = useState<DistributorAccessMatrix>(createDefaultMatrix)
 
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('vdesgo-user') || '{}') as { username?: string; accountType?: string } } catch { return {} }
+  })()
+  const authHeaders: Record<string, string> = {
+    'x-vdesgo-account-type': currentUser.accountType || '',
+    'x-vdesgo-username': currentUser.username || '',
+  }
+
   const selectedAccess = accessMatrix[selectedUsername] ?? {}
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    fetch(`${apiUrl}/data/customers`)
+    fetch(`${apiUrl}/data/customers`, { headers: authHeaders })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((payload: CustomerRow[]) => setCustomers(payload))
       .catch(() => window.alert('Cari kartlar veritabanından alınamadı.'))
@@ -126,7 +134,7 @@ export function RoleAccessWindow() {
   useEffect(() => {
     if (!selectedUsername) return
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(selectedUsername)}`)
+    fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(selectedUsername)}`, { headers: authHeaders })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((permissions: Record<string, DistributorAccessValue>) => setAccessMatrix((current) => ({ ...current, [selectedUsername]: permissions })))
       .catch(() => undefined)
@@ -136,8 +144,8 @@ export function RoleAccessWindow() {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
     Promise.all([
-      fetch(`${apiUrl}/security/users`).then((response) => response.json()),
-      fetch(`${apiUrl}/security/factory-users`).then((response) => response.json()),
+      fetch(`${apiUrl}/security/users`, { headers: authHeaders }).then((response) => response.ok ? response.json() : Promise.reject()),
+      fetch(`${apiUrl}/security/factory-users`, { headers: authHeaders }).then((response) => response.ok ? response.json() : Promise.reject()),
     ])
       .then(([userPayload, factoryUserPayload]) => {
         if (Array.isArray(userPayload) && userPayload.length > 0) {
@@ -148,7 +156,7 @@ export function RoleAccessWindow() {
         if (Array.isArray(factoryUserPayload)) setFactoryAccounts(factoryUserPayload)
       })
       .catch(() => undefined)
-  }, [])
+  }, [currentUser.accountType, currentUser.username])
 
   const updateSelectedUserAccess = (moduleKey: string, field: 'visible' | 'view' | 'create' | 'edit' | 'delete', value: boolean) => {
     setAccessMatrix((currentMatrix) => {
@@ -194,7 +202,7 @@ export function RoleAccessWindow() {
     if (!selectedUsername) return
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
     const response = await fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(selectedUsername)}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ permissions: accessMatrix[selectedUsername] ?? {} }),
+      method: 'PUT', headers: { ...authHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ permissions: accessMatrix[selectedUsername] ?? {} }),
     })
     if (!response.ok) window.alert('Yetki matrisi kaydedilemedi.')
   }
@@ -209,7 +217,7 @@ export function RoleAccessWindow() {
     try {
       const response = await fetch(`${apiUrl}/security/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerCode: distributorForm.customerCode.trim(),
           customerName: distributorForm.customerName.trim(),
@@ -238,17 +246,8 @@ export function RoleAccessWindow() {
       setAccounts((current) => [...current, newUser])
       setSelectedUsername(newUser.username)
     } catch {
-      const newUser: DistributorUser = {
-        customerCode: distributorForm.customerCode.trim(),
-        customerName: distributorForm.customerName.trim(),
-        username: distributorForm.username.trim(),
-        password: '********',
-        role: distributorForm.role,
-        status: distributorForm.status,
-      }
-
-      setAccounts((current) => [...current, newUser])
-      setSelectedUsername(newUser.username)
+      window.alert('Distribütör kullanıcısı kaydedilemedi. API yanıtını ve cari kodunu kontrol edin.')
+      return
     }
 
     setDistributorForm({ customerCode: '', customerName: '', username: '', password: '', role: 'Firma Yetkilisi', status: 'Aktif' })
@@ -260,7 +259,7 @@ export function RoleAccessWindow() {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
     const response = await fetch(`${apiUrl}/security/factory-users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify(factoryForm),
     })
     if (!response.ok) {
@@ -277,7 +276,7 @@ export function RoleAccessWindow() {
     if (!window.confirm(`${username} kullanıcısını silmek istediğinize emin misiniz?`)) return
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    const response = await fetch(`${apiUrl}/security/distributor-users/${encodeURIComponent(username)}`, { method: 'DELETE' })
+    const response = await fetch(`${apiUrl}/security/distributor-users/${encodeURIComponent(username)}`, { method: 'DELETE', headers: authHeaders })
     if (!response.ok) {
       window.alert('Distribütör kullanıcısı silinemedi.')
       return
@@ -294,7 +293,7 @@ export function RoleAccessWindow() {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
     const response = await fetch(`${apiUrl}/security/distributor-users/${encodeURIComponent(username)}/password`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
     if (!response.ok) {
@@ -308,7 +307,7 @@ export function RoleAccessWindow() {
     if (!window.confirm(`${username} kullanıcısını silmek istediğinize emin misiniz?`)) return
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    const response = await fetch(`${apiUrl}/security/factory-users/${encodeURIComponent(username)}`, { method: 'DELETE' })
+    const response = await fetch(`${apiUrl}/security/factory-users/${encodeURIComponent(username)}`, { method: 'DELETE', headers: authHeaders })
     if (!response.ok) {
       window.alert('Merkez kullanıcısı silinemedi.')
       return
@@ -323,7 +322,7 @@ export function RoleAccessWindow() {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
     const response = await fetch(`${apiUrl}/security/factory-users/${encodeURIComponent(username)}/password`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
     if (!response.ok) {
