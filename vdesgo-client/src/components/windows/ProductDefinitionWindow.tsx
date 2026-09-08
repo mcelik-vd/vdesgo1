@@ -29,6 +29,7 @@ type Price = {
   status: string
 }
 type ProductUnit = { productCode: string; unit: string; innerQuantity: string; barcode: string }
+type ModuleAccess = { visible: boolean; actions?: { view?: boolean; create?: boolean; edit?: boolean; delete?: boolean } }
 
 const tabs = ['Ürün Tanımlama', 'Ürün Fiyat Tanımlama', 'Ürün Grup Tanımlama', 'Ürün Tipi Tanımlama']
 const emptyProduct = () => ({ code: '', name: '', category: '', productType: '', unit: 'Koli', vat: '%10', ePoint: '', volume: '', weight: '' })
@@ -64,6 +65,22 @@ export function ProductDefinitionWindow() {
       return { 'x-vdesgo-account-type': '', 'x-vdesgo-username': '' }
     }
   })()
+  const [moduleAccess, setModuleAccess] = useState<ModuleAccess>({ visible: true, actions: { view: true, create: true, edit: true, delete: true } })
+  const canCreate = moduleAccess.actions?.create !== false
+  const canEdit = moduleAccess.actions?.edit !== false
+  const canDelete = moduleAccess.actions?.delete !== false
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('vdesgo-user') || '{}') as { username?: string; accountType?: string }
+      if (user.accountType !== 'distributor' || !user.username) return
+      fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(user.username)}`, {
+        headers: { 'x-vdesgo-account-type': user.accountType, 'x-vdesgo-username': user.username },
+      }).then((response) => response.ok ? response.json() : Promise.reject()).then((matrix) => {
+        if (matrix?.ProductDefinition) setModuleAccess(matrix.ProductDefinition)
+      }).catch(() => undefined)
+    } catch { /* use factory defaults */ }
+  }, [apiUrl])
 
   useEffect(() => {
     Promise.all([
@@ -247,8 +264,8 @@ export function ProductDefinitionWindow() {
     {error && <p className="unit-error">{error}</p>}
 
     {activeTab === tabs[0] && <section className="product-panel">
-      <div className="definition-panel-heading"><div><p className="definition-kicker">MERKEZİ ÜRÜN KATALOĞU</p><h2>Ürün Kartları</h2></div><button className="primary-action" onClick={() => void openNewProduct()} type="button">Yeni</button></div>
-      <div className="customers-table-wrap"><table className="customers-table product-table"><thead><tr><th>Kod</th><th>Ürün</th><th>Grup</th><th>Tip</th><th>Birim</th><th>KDV</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{products.map((product) => <tr key={product.code} onDoubleClick={() => openProductEdit(product)}><td className="customer-code">{product.code}</td><td>{product.name}</td><td>{product.category}</td><td>{product.productType || '-'}</td><td>{product.unit}</td><td>{product.vat}</td><td><span className="status-active">{product.active ? 'Aktif' : 'Pasif'}</span></td><td><div className="user-row-actions"><button className="delete-action" onClick={() => void removeProduct(product)} type="button">Sil</button></div></td></tr>)}</tbody></table></div>
+      <div className="definition-panel-heading"><div><p className="definition-kicker">MERKEZİ ÜRÜN KATALOĞU</p><h2>Ürün Kartları</h2></div>{canCreate && <button className="primary-action" onClick={() => void openNewProduct()} type="button">Yeni</button>}</div>
+      <div className="customers-table-wrap"><table className="customers-table product-table"><thead><tr><th>Kod</th><th>Ürün</th><th>Grup</th><th>Tip</th><th>Birim</th><th>KDV</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{products.map((product) => <tr key={product.code} onDoubleClick={canEdit ? () => openProductEdit(product) : undefined}><td className="customer-code">{product.code}</td><td>{product.name}</td><td>{product.category}</td><td>{product.productType || '-'}</td><td>{product.unit}</td><td>{product.vat}</td><td><span className="status-active">{product.active ? 'Aktif' : 'Pasif'}</span></td><td>{canDelete && <div className="user-row-actions"><button className="delete-action" onClick={() => void removeProduct(product)} type="button">Sil</button></div>}</td></tr>)}</tbody></table></div>
       {productDialogOpen && <div className="product-dialog-backdrop"><section className="product-dialog"><div className="definition-panel-heading"><div><p className="definition-kicker">ÜRÜN KAYDI</p><h2>{editingProductCode ? 'Ürün Düzenle' : 'Yeni Ürün'}</h2></div><button className="dialog-close" onClick={() => setProductDialogOpen(false)} type="button">×</button></div><div className="product-dialog-grid"><label>Ürün Kodu<input disabled value={productForm.code} /></label><label>Ürün Adı<input value={productForm.name} onChange={(event) => setProductForm({ ...productForm, name: event.target.value })} /></label><label>Ürün Grubu<select value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })}><option value="">Grup seçiniz</option>{groups.map((group) => <option key={group.code} value={group.name}>{group.name}</option>)}</select></label><label>Ürün Tipi<select value={productForm.productType} onChange={(event) => setProductForm({ ...productForm, productType: event.target.value })}><option value="">Tip seçiniz</option>{types.map((type) => <option key={type.code} value={type.name}>{type.name}</option>)}</select></label><label>Varsayılan Birim<select value={productForm.unit} onChange={(event) => setProductForm({ ...productForm, unit: event.target.value })}><option>Koli</option><option>Adet</option><option>Palet</option><option>Kutu</option></select></label><label>KDV Oranı<select value={productForm.vat} onChange={(event) => setProductForm({ ...productForm, vat: event.target.value })}><option>%0</option><option>%1</option><option>%10</option><option>%20</option></select></label><label>E-Puan<input value={productForm.ePoint} onChange={(event) => setProductForm({ ...productForm, ePoint: event.target.value })} /></label><label>Hacim<input value={productForm.volume} onChange={(event) => setProductForm({ ...productForm, volume: event.target.value })} /></label><label>Ağırlık<input value={productForm.weight} onChange={(event) => setProductForm({ ...productForm, weight: event.target.value })} /></label></div><div className="dialog-actions"><button className="primary-action" onClick={() => void saveProduct()} type="button">Kaydet</button></div></section></div>}
     </section>}
 
