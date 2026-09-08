@@ -329,6 +329,7 @@ const factoryUsers = [
 const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'https://vdesgo-353a1.web.app',
 ]
 
 app.use(cors({ origin: allowedOrigins, credentials: true }))
