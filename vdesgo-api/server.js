@@ -1242,10 +1242,19 @@ app.delete('/promotions/:id', async (req, res) => {
 
 app.get('/security/access-matrix/:username', async (req, res) => {
   if (!databaseUrl) return res.status(503).json({ error: 'Database not configured' })
-  if (!requireFactoryAccount(req, res)) return
   const client = new pg.Client({ connectionString: databaseUrl })
   try {
     await client.connect()
+    const isFactory = req.header('x-vdesgo-account-type') === 'factory'
+    const isOwnDistributorMatrix = req.header('x-vdesgo-account-type') === 'distributor'
+      && req.header('x-vdesgo-username') === req.params.username
+    if (!isFactory && !isOwnDistributorMatrix) {
+      return res.status(403).json({ error: 'Bu erişim matrisi yalnızca merkez veya ilgili kullanıcı tarafından okunabilir.' })
+    }
+    if (isOwnDistributorMatrix) {
+      const user = await client.query('SELECT 1 FROM distributor_users WHERE username = $1 AND status = $2', [req.params.username, 'Aktif'])
+      if (user.rowCount === 0) return res.status(401).json({ error: 'Distribütör hesabı bulunamadı.' })
+    }
     const result = await client.query('SELECT permissions FROM security_access_matrix WHERE username = $1', [req.params.username])
     return res.json(result.rows[0]?.permissions ?? {})
   } catch (error) {
