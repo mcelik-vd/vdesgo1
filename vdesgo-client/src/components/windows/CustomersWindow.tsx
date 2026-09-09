@@ -274,6 +274,10 @@ export function CustomersWindow() {
     try { return JSON.parse(localStorage.getItem('vdesgo-user') || '{}') as { username?: string; accountType?: string } } catch { return {} }
   })()
   const isDistributor = currentUser.accountType === 'distributor'
+  const authHeaders: Record<string, string> = {
+    'x-vdesgo-account-type': currentUser.accountType || '',
+    'x-vdesgo-username': currentUser.username || '',
+  }
   const tabAccessKey: Record<string, string> = {
     'Cari Tip Tanımlama': 'CustomerTypeDefinition',
     'Cari Grup Tanımlama': 'CustomerGroupDefinition',
@@ -339,11 +343,11 @@ export function CustomersWindow() {
     const load = async () => {
       try {
         const [customerData, typeData, groupData, chiefData, regionData] = await Promise.all([
-          fetch(`${apiUrl}/data/customers`).then((response) => response.json()),
-          fetch(`${apiUrl}/data/customerTypes`).then((response) => response.json()),
-          fetch(`${apiUrl}/data/customerGroups`).then((response) => response.json()),
-          fetch(`${apiUrl}/data/chiefs`).then((response) => response.json()),
-          fetch(`${apiUrl}/data/regions`).then((response) => response.json()),
+          fetch(`${apiUrl}/data/customers`, { headers: authHeaders }).then((response) => response.json()),
+          fetch(`${apiUrl}/data/customerTypes`, { headers: authHeaders }).then((response) => response.json()),
+          fetch(`${apiUrl}/data/customerGroups`, { headers: authHeaders }).then((response) => response.json()),
+          fetch(`${apiUrl}/data/chiefs`, { headers: authHeaders }).then((response) => response.json()),
+          fetch(`${apiUrl}/data/regions`, { headers: authHeaders }).then((response) => response.json()),
         ])
         if (Array.isArray(customerData)) setCustomers(customerData)
         if (Array.isArray(typeData)) setCustomerTypes(typeData)
@@ -355,11 +359,11 @@ export function CustomersWindow() {
       }
     }
     void load()
-  }, [apiUrl])
+  }, [apiUrl, currentUser.accountType, currentUser.username])
 
   useEffect(() => {
     if (!isDistributor || !currentUser.username) return
-    fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(currentUser.username)}`)
+    fetch(`${apiUrl}/security/access-matrix/${encodeURIComponent(currentUser.username)}`, { headers: authHeaders })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((permissions) => setMasterDataAccess(permissions))
       .catch(() => setMasterDataAccess({}))
@@ -368,16 +372,24 @@ export function CustomersWindow() {
   const saveResource = async <T extends { code: string }>(resource: string, item: T, existingCode?: string) => {
     const response = await fetch(`${apiUrl}/data/${resource}${existingCode ? `/${encodeURIComponent(existingCode)}` : ''}`, {
       method: existingCode ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify(item),
     })
-    if (!response.ok) throw new Error('Kayıt işlemi tamamlanamadı.')
+    if (!response.ok) {
+      let message = 'Kayıt işlemi tamamlanamadı.'
+      try { message = (await response.json()).error || message } catch { /* keep generic message */ }
+      throw new Error(message)
+    }
     return response.json() as Promise<T>
   }
 
   const deleteResource = async (resource: string, code: string) => {
-    const response = await fetch(`${apiUrl}/data/${resource}/${encodeURIComponent(code)}`, { method: 'DELETE' })
-    if (!response.ok) throw new Error('Silme işlemi tamamlanamadı.')
+    const response = await fetch(`${apiUrl}/data/${resource}/${encodeURIComponent(code)}`, { method: 'DELETE', headers: authHeaders })
+    if (!response.ok) {
+      let message = 'Silme işlemi tamamlanamadı.'
+      try { message = (await response.json()).error || message } catch { /* keep generic message */ }
+      throw new Error(message)
+    }
   }
 
   const updateField = (field: keyof typeof emptyForm, value: string | boolean) => {
