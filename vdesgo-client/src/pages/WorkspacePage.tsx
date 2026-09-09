@@ -118,6 +118,7 @@ export function WorkspacePage() {
   const [representativeOperationsOpen, setRepresentativeOperationsOpen] = useState(false)
   const [invoiceOperationsOpen, setInvoiceOperationsOpen] = useState(false)
   const [collectionOperationsOpen, setCollectionOperationsOpen] = useState(false)
+  const [savingRequest, setSavingRequest] = useState(false)
   const [generalMenuExpanded, setGeneralMenuExpanded] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ role?: string; distributor?: string; username?: string; accountType?: 'factory' | 'distributor' } | null>(null)
   const [distributorAccess, setDistributorAccess] = useState<Record<string, DistributorModuleAccess> | null>(null)
@@ -133,10 +134,32 @@ export function WorkspacePage() {
   const hydrateLayout = useWindowStore((state) => state.hydrateLayout)
   const canvasRef = useRef<HTMLElement>(null)
   const interactionRef = useRef<PointerInteraction | null>(null)
+  const savingRequestsRef = useRef(0)
 
   const navigate = useNavigate()
 
   useUnsavedWorkGuard()
+
+  useEffect(() => {
+    const originalFetch = window.fetch
+    window.fetch = async (input, init) => {
+      const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
+      if (!['POST', 'PUT', 'PATCH'].includes(method)) return originalFetch(input, init)
+
+      savingRequestsRef.current += 1
+      setSavingRequest(true)
+      try {
+        return await originalFetch(input, init)
+      } finally {
+        savingRequestsRef.current -= 1
+        if (savingRequestsRef.current === 0) setSavingRequest(false)
+      }
+    }
+
+    return () => {
+      window.fetch = originalFetch
+    }
+  }, [])
 
   useEffect(() => {
     const storedUser = localStorage.getItem('vdesgo-user')
@@ -552,6 +575,8 @@ export function WorkspacePage() {
             )
           })}
       </section>
+
+      {savingRequest && <div aria-live="polite" className="saving-product-overlay"><div className="saving-product-message"><span className="saving-product-spinner" /> <strong>Lütfen bekleyiniz...</strong><span>İşlem kaydediliyor.</span></div></div>}
 
       <footer aria-label="Simge durumundaki pencereler" className="window-taskbar">
         {windows.filter((workWindow) => workWindow.status === 'MINIMIZED').map((workWindow) => (

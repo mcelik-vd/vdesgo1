@@ -131,6 +131,11 @@ h1 { margin: 0; font-size: 28px; font-weight: 700; }
 .group-form .primary-action { margin: 0; }
 .product-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: #16221b66; }
 .product-dialog { width: min(620px, 100%); max-height: calc(100vh - 40px); overflow: auto; padding: 20px; border: 1px solid #8fa495; border-radius: 6px; background: #fbfdfb; box-shadow: 0 18px 45px #16221b4d; }
+.saving-product-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: #16221bcc; }
+.saving-product-message { display: grid; justify-items: center; gap: 8px; min-width: 240px; padding: 24px 30px; border: 1px solid #8fa495; border-radius: 6px; color: #fbfdfb; background: #1f3328; box-shadow: 0 18px 45px #0008; }
+.saving-product-message span:last-child { color: #c9d7cc; font-size: 12px; }
+.saving-product-spinner { width: 24px; height: 24px; border: 3px solid #9caf9e; border-top-color: #fbfdfb; border-radius: 50%; animation: saving-product-spin 0.8s linear infinite; }
+@keyframes saving-product-spin { to { transform: rotate(360deg); } }
 .dialog-close { border: 0; background: transparent; color: #526656; font-size: 24px; line-height: 1; cursor: pointer; }
 .role-access-window { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding-bottom: 20px; }
 .user-definition-tabs { display: flex; gap: 8px; border-bottom: 1px solid #c9d7cc; }
