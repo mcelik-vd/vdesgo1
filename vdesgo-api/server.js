@@ -661,25 +661,35 @@ app.get('/inventory/warehouse-transfer-report', async (req, res) => {
     const tenantCode = await getRequestTenant(client, req)
     const { startDate, endDate, enteringWarehouseCode, exitingWarehouseCode } = req.query
     const productCodes = Array.isArray(req.query.productCode) ? req.query.productCode : req.query.productCode ? [req.query.productCode] : []
-    const conditions = ['t.tenant_code IS NOT DISTINCT FROM $1']
+    const conditions = ['m.tenant_code IS NOT DISTINCT FROM $1']
     const values = [tenantCode]
-    if (startDate) { values.push(startDate); conditions.push(`t.transfer_date >= $${values.length}`) }
-    if (endDate) { values.push(endDate); conditions.push(`t.transfer_date <= $${values.length}`) }
-    if (enteringWarehouseCode) { values.push(enteringWarehouseCode); conditions.push(`t.entering_warehouse_code = $${values.length}`) }
-    if (exitingWarehouseCode) { values.push(exitingWarehouseCode); conditions.push(`t.exiting_warehouse_code = $${values.length}`) }
-    if (productCodes.length) { values.push(productCodes); conditions.push(`l.product_code = ANY($${values.length}::text[])`) }
+    if (startDate) { values.push(startDate); conditions.push(`m.transfer_date >= $${values.length}`) }
+    if (endDate) { values.push(endDate); conditions.push(`m.transfer_date <= $${values.length}`) }
+    if (enteringWarehouseCode) { values.push(enteringWarehouseCode); conditions.push(`m.entering_warehouse_code = $${values.length}`) }
+    if (exitingWarehouseCode) { values.push(exitingWarehouseCode); conditions.push(`m.exiting_warehouse_code = $${values.length}`) }
+    if (productCodes.length) { values.push(productCodes); conditions.push(`m.product_code = ANY($${values.length}::text[])`) }
     const result = await client.query(`
-      SELECT t.id, t.receipt_no AS "receiptNo", t.transfer_date AS "transferDate",
-        t.entering_warehouse_code AS "enteringWarehouseCode", wi.name AS "enteringWarehouseName",
-        t.exiting_warehouse_code AS "exitingWarehouseCode", wo.name AS "exitingWarehouseName",
-        l.product_code AS "productCode", l.product_name AS "productName", l.unit,
-        l.inner_quantity AS "innerQuantity", l.quantity, l.total_quantity AS "totalQuantity"
-      FROM warehouse_transfers t
-      INNER JOIN warehouse_transfer_lines l ON l.transfer_id = t.id
-      LEFT JOIN factory_warehouses wi ON wi.code = t.entering_warehouse_code
-      LEFT JOIN factory_warehouses wo ON wo.code = t.exiting_warehouse_code
+      WITH movement_rows AS (
+        SELECT t.id, t.receipt_no, t.transfer_date, t.entering_warehouse_code, t.exiting_warehouse_code, t.tenant_code,
+          l.product_code, l.product_name, l.unit, l.inner_quantity, l.quantity, l.total_quantity, l.id AS line_id
+        FROM warehouse_transfers t
+        INNER JOIN warehouse_transfer_lines l ON l.transfer_id = t.id
+        UNION ALL
+        SELECT v.id, v.receipt_no, v.loading_date, v.entering_warehouse_code, v.exiting_warehouse_code, v.tenant_code,
+          l.product_code, l.product_name, l.unit, l.inner_quantity, l.quantity, l.total_quantity, l.id AS line_id
+        FROM vehicle_loadings v
+        INNER JOIN vehicle_loading_lines l ON l.loading_id = v.id
+      )
+      SELECT m.id, m.receipt_no AS "receiptNo", m.transfer_date AS "transferDate",
+        m.entering_warehouse_code AS "enteringWarehouseCode", wi.name AS "enteringWarehouseName",
+        m.exiting_warehouse_code AS "exitingWarehouseCode", wo.name AS "exitingWarehouseName",
+        m.product_code AS "productCode", m.product_name AS "productName", m.unit,
+        m.inner_quantity AS "innerQuantity", m.quantity, m.total_quantity AS "totalQuantity"
+      FROM movement_rows m
+      LEFT JOIN factory_warehouses wi ON wi.code = m.entering_warehouse_code
+      LEFT JOIN factory_warehouses wo ON wo.code = m.exiting_warehouse_code
       WHERE ${conditions.join(' AND ')}
-      ORDER BY t.transfer_date DESC, t.receipt_no DESC, l.id
+      ORDER BY m.transfer_date DESC, m.receipt_no DESC, m.line_id
     `, values)
     return res.json(result.rows.map((row) => ({ ...row, transferDate: toApiValue(row.transferDate), quantity: Number(row.quantity), innerQuantity: Number(row.innerQuantity || 1), totalQuantity: Number(row.totalQuantity) })))
   } catch (error) {
