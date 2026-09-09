@@ -633,14 +633,20 @@ app.get('/inventory/stock-report', async (req, res) => {
         GROUP BY i.warehouse_code, l.product_code
       )
       SELECT w.code AS "warehouseCode", w.name AS "warehouseName", p.code AS "productCode", p.name AS "productName",
-        p.unit, p.category, p.product_type AS "productType", COALESCE(SUM(m.quantity), 0) AS "baseQuantity"
+        p.unit, p.category, p.product_type AS "productType",
+        COALESCE((SELECT NULLIF(REPLACE(u.inner_quantity, ',', '.') , '')::NUMERIC FROM product_units u WHERE u.product_code = p.code AND u.unit = p.unit ORDER BY u.id LIMIT 1), 1) AS "unitContent",
+        COALESCE(SUM(m.quantity), 0) AS "baseQuantity"
       FROM factory_warehouses w CROSS JOIN factory_products p
       LEFT JOIN movements m ON m.warehouse_code = w.code AND m.product_code = p.code
       WHERE w.active = TRUE AND ($1::VARCHAR IS NULL OR w.tenant_code IS NOT DISTINCT FROM $1)
       GROUP BY w.code, w.name, p.code, p.name, p.unit, p.category, p.product_type
       ORDER BY w.name, p.name
     `, [tenantCode])
-    return res.json(result.rows.map((row) => ({ ...row, baseQuantity: Number(row.baseQuantity) })))
+    return res.json(result.rows.map((row) => {
+      const baseQuantity = Number(row.baseQuantity)
+      const unitContent = Number(row.unitContent) || 1
+      return { ...row, baseQuantity, unitContent, quantity: baseQuantity / unitContent }
+    }))
   } catch (error) {
     console.error('Stock report query failed:', error)
     return res.status(500).json({ error: 'Stock report query failed' })

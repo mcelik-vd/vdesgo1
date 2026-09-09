@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type StockRow = { warehouseCode: string; warehouseName: string; productCode: string; productName: string; unit: string; category: string; productType: string; baseQuantity: number }
+type StockRow = { warehouseCode: string; warehouseName: string; productCode: string; productName: string; unit: string; unitContent: number; category: string; productType: string; baseQuantity: number; quantity: number }
 type FilterOption = { value: string; label: string }
 
 function FilterPicker({ label, values, options, active, onOpen, onClose, onChange }: { label: string; values: string[]; options: FilterOption[]; active: boolean; onOpen: () => void; onClose: () => void; onChange: (values: string[]) => void }) {
@@ -47,7 +47,7 @@ export function StockReportsWindow() {
       && (!productNameFilters.length || productNameFilters.includes(row.productCode))
       && (!query || `${row.productCode} ${row.productName}`.toLocaleLowerCase('tr-TR').includes(query))
   })
-  const totalQuantity = filteredRows.reduce((total, row) => total + row.baseQuantity, 0)
+  const totalQuantity = filteredRows.reduce((total, row) => total + row.quantity, 0)
   const positiveRows = filteredRows.filter((row) => row.baseQuantity !== 0)
 
   return <div className="stock-reports-window">
@@ -56,7 +56,7 @@ export function StockReportsWindow() {
       <div className="stock-report-toolbar"><FilterPicker label="Depo" values={warehouseFilters} options={warehouses.map(([code, name]) => ({ value: code, label: `${name} (${code})` }))} active={picker === 'warehouse'} onOpen={() => setPicker('warehouse')} onClose={() => setPicker(null)} onChange={setWarehouseFilters} /><FilterPicker label="Ürün tipi" values={productTypeFilters} options={productTypes.map((type) => ({ value: type, label: type }))} active={picker === 'type'} onOpen={() => setPicker('type')} onClose={() => setPicker(null)} onChange={setProductTypeFilters} /><FilterPicker label="Ürün grubu" values={productGroupFilters} options={productGroups.map((group) => ({ value: group, label: group }))} active={picker === 'group'} onOpen={() => setPicker('group')} onClose={() => setPicker(null)} onChange={setProductGroupFilters} /><FilterPicker label="Ürün adı" values={productNameFilters} options={productNames.map(([code, name]) => ({ value: code, label: name }))} active={picker === 'product'} onOpen={() => setPicker('product')} onClose={() => setPicker(null)} onChange={setProductNameFilters} /><label>Ürün ara<input value={productFilter} onChange={(event) => setProductFilter(event.target.value)} placeholder="Kod veya ürün adı" /></label></div>
       {message && <p className="unit-error" role="alert">{message}</p>}
       <div className="stock-report-summary"><span>Toplam satır<strong>{positiveRows.length}</strong></span><span>Toplam miktar<strong>{totalQuantity.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</strong></span></div>
-      <div className="customers-table-wrap"><table className="customers-table stock-report-table"><thead><tr><th>Depo</th><th>Ürün Kodu</th><th>Ürün</th><th>Ürün Tipi</th><th>Ürün Grubu</th><th>Birim</th><th>Mevcut Miktar</th><th>Durum</th></tr></thead><tbody>{positiveRows.length === 0 ? <tr><td colSpan={8} className="operation-list-empty">Stok kaydı bulunmuyor.</td></tr> : positiveRows.map((row) => <tr key={`${row.warehouseCode}-${row.productCode}`}><td>{row.warehouseName}</td><td className="customer-code">{row.productCode}</td><td>{row.productName}</td><td>{row.productType || '-'}</td><td>{row.category || '-'}</td><td>{row.unit || '-'}</td><td className="stock-report-quantity">{row.baseQuantity.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</td><td><span className={row.baseQuantity < 0 ? 'status-inactive' : 'status-active'}>{row.baseQuantity < 0 ? 'Eksi stok' : 'Mevcut'}</span></td></tr>)}</tbody></table></div>
+      <div className="customers-table-wrap"><table className="customers-table stock-report-table"><thead><tr><th>Depo</th><th>Ürün Kodu</th><th>Ürün</th><th>Ürün Tipi</th><th>Ürün Grubu</th><th>Birim</th><th>Birim İçeriği</th><th>Mevcut Miktar</th><th>Durum</th></tr></thead><tbody>{positiveRows.length === 0 ? <tr><td colSpan={9} className="operation-list-empty">Stok kaydı bulunmuyor.</td></tr> : positiveRows.map((row) => <tr key={`${row.warehouseCode}-${row.productCode}`}><td>{row.warehouseName}</td><td className="customer-code">{row.productCode}</td><td>{row.productName}</td><td>{row.productType || '-'}</td><td>{row.category || '-'}</td><td>{row.unit || '-'}</td><td>{row.unitContent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</td><td className="stock-report-quantity">{row.quantity.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</td><td><span className={row.quantity < 0 ? 'status-inactive' : 'status-active'}>{row.quantity < 0 ? 'Eksi stok' : 'Mevcut'}</span></td></tr>)}</tbody></table></div>
     </section>
   </div>
 }
