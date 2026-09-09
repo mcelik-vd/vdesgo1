@@ -706,6 +706,7 @@ app.post('/sales-invoices', async (req, res) => {
   const parseBalance = (value) => parseMoneyNumber(value)
   const formatBalance = (value) => formatMoney(value)
   const numericTotal = parseMoneyNumber(totalAmount)
+  if (!Number.isFinite(numericTotal)) return res.status(400).json({ error: 'Genel toplam sayısal olmalıdır.' })
   try {
     await client.connect(); await client.query('BEGIN')
     const tenantCode = await getRequestTenant(client, req)
@@ -714,7 +715,10 @@ app.post('/sales-invoices', async (req, res) => {
     const customer = await client.query('SELECT balance FROM customer_cards WHERE code = $1 AND (tenant_code IS NOT DISTINCT FROM $2 OR $2 IS NULL) FOR UPDATE', [customerCode, tenantCode])
     if (customer.rowCount === 0) throw new Error('Cari bulunamadı veya bu kullanıcıya ait değil.')
     for (const line of lines) {
-      const totalQuantity = Number(line.quantity) * Number(line.innerQuantity || 1)
+      const quantity = parseMoneyNumber(line.quantity)
+      const innerQuantity = parseMoneyNumber(line.innerQuantity || 1)
+      if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(innerQuantity) || innerQuantity <= 0) throw new Error('Geçersiz ürün miktarı.')
+      const totalQuantity = quantity * innerQuantity
       const stock = await client.query(`
         SELECT COALESCE((SELECT SUM(l.total_quantity) FROM other_stock_entry_lines l INNER JOIN other_stock_entries e ON e.id = l.entry_id WHERE e.entering_warehouse_code = $1 AND l.product_code = $2), 0)
         - COALESCE((SELECT SUM(l.total_quantity) FROM other_stock_exit_lines l INNER JOIN other_stock_exits e ON e.id = l.exit_id WHERE e.exiting_warehouse_code = $1 AND l.product_code = $2), 0)
@@ -727,11 +731,16 @@ app.post('/sales-invoices', async (req, res) => {
     }
     const invoice = await client.query('INSERT INTO sales_invoices (invoice_no, invoice_date, customer_code, customer_name, sales_representative, sale_type, warehouse_code, total_amount, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, invoice_no AS "invoiceNo"', [invoiceNo, invoiceDate, customerCode, customerName || '', salesRepresentative || '', saleType || null, warehouseCode, numericTotal, req.header('x-vdesgo-username') || null])
     for (const line of lines) {
-      const totalQuantity = Number(line.quantity) * Number(line.innerQuantity || 1)
-      await client.query('INSERT INTO sales_invoice_lines (invoice_id, product_code, product_name, unit, quantity, inner_quantity, total_quantity, unit_price, line_total, is_promotional) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [invoice.rows[0].id, line.productCode, line.productName, line.unit, Number(line.quantity), Number(line.innerQuantity || 1), totalQuantity, Number(line.unitPrice || 0), Number(line.lineTotal || 0), line.isPromotional === true])
+      const quantity = parseMoneyNumber(line.quantity)
+      const innerQuantity = parseMoneyNumber(line.innerQuantity || 1)
+      const totalQuantity = quantity * innerQuantity
+      const unitPrice = parseMoneyNumber(line.unitPrice)
+      const lineTotal = parseMoneyNumber(line.lineTotal)
+      if (!Number.isFinite(unitPrice) || !Number.isFinite(lineTotal)) throw new Error('Geçersiz ürün fiyatı veya satır toplamı.')
+      await client.query('INSERT INTO sales_invoice_lines (invoice_id, product_code, product_name, unit, quantity, inner_quantity, total_quantity, unit_price, line_total, is_promotional) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [invoice.rows[0].id, line.productCode, line.productName, line.unit, quantity, innerQuantity, totalQuantity, unitPrice, lineTotal, line.isPromotional === true])
     }
     const nextBalance = parseBalance(customer.rows[0].balance) + numericTotal
-    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [formatBalance(nextBalance), customerCode])
+    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [nextBalance, customerCode])
     await recordAudit(client, req, { entityType: 'sales_invoice', entityId: invoice.rows[0].id, action: 'create', newValue: { ...invoice.rows[0], customerCode, warehouseCode, totalAmount: numericTotal } })
     await client.query('COMMIT')
     return res.status(201).json({ ...invoice.rows[0], customerCode, salesRepresentative, saleType, totalAmount: numericTotal })
@@ -866,7 +875,7 @@ app.delete('/purchase-invoices/:id', async (req, res) => {
     if (!invoice.rowCount) throw new Error('Alış faturası bulunamadı.')
     const customer = await client.query('SELECT balance FROM customer_cards WHERE code = $1 FOR UPDATE', [invoice.rows[0].customer_code])
     const restoredBalance = parseAccountBalance(customer.rows[0].balance) + Number(invoice.rows[0].total_amount || 0)
-    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [formatAccountBalance(restoredBalance), invoice.rows[0].customer_code])
+    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [restoredBalance, invoice.rows[0].customer_code])
     if (invoice.rows[0].stock_entry_id) await client.query('DELETE FROM other_stock_entries WHERE id = $1', [invoice.rows[0].stock_entry_id])
     await client.query('DELETE FROM purchase_invoices WHERE id = $1', [req.params.id])
     await client.query('COMMIT')
