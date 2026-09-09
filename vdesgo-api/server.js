@@ -653,6 +653,41 @@ app.get('/inventory/stock-report', async (req, res) => {
   } finally { await client.end().catch(() => undefined) }
 })
 
+app.get('/inventory/warehouse-transfer-report', async (req, res) => {
+  if (!databaseUrl) return res.status(503).json({ error: 'Database not configured' })
+  const client = new pg.Client({ connectionString: databaseUrl })
+  try {
+    await client.connect()
+    const tenantCode = await getRequestTenant(client, req)
+    const { startDate, endDate, enteringWarehouseCode, exitingWarehouseCode } = req.query
+    const productCodes = Array.isArray(req.query.productCode) ? req.query.productCode : req.query.productCode ? [req.query.productCode] : []
+    const conditions = ['t.tenant_code IS NOT DISTINCT FROM $1']
+    const values = [tenantCode]
+    if (startDate) { values.push(startDate); conditions.push(`t.transfer_date >= $${values.length}`) }
+    if (endDate) { values.push(endDate); conditions.push(`t.transfer_date <= $${values.length}`) }
+    if (enteringWarehouseCode) { values.push(enteringWarehouseCode); conditions.push(`t.entering_warehouse_code = $${values.length}`) }
+    if (exitingWarehouseCode) { values.push(exitingWarehouseCode); conditions.push(`t.exiting_warehouse_code = $${values.length}`) }
+    if (productCodes.length) { values.push(productCodes); conditions.push(`l.product_code = ANY($${values.length}::text[])`) }
+    const result = await client.query(`
+      SELECT t.id, t.receipt_no AS "receiptNo", t.transfer_date AS "transferDate",
+        t.entering_warehouse_code AS "enteringWarehouseCode", wi.name AS "enteringWarehouseName",
+        t.exiting_warehouse_code AS "exitingWarehouseCode", wo.name AS "exitingWarehouseName",
+        l.product_code AS "productCode", l.product_name AS "productName", l.unit,
+        l.inner_quantity AS "innerQuantity", l.quantity, l.total_quantity AS "totalQuantity"
+      FROM warehouse_transfers t
+      INNER JOIN warehouse_transfer_lines l ON l.transfer_id = t.id
+      LEFT JOIN factory_warehouses wi ON wi.code = t.entering_warehouse_code
+      LEFT JOIN factory_warehouses wo ON wo.code = t.exiting_warehouse_code
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY t.transfer_date DESC, t.receipt_no DESC, l.id
+    `, values)
+    return res.json(result.rows.map((row) => ({ ...row, transferDate: toApiValue(row.transferDate), quantity: Number(row.quantity), innerQuantity: Number(row.innerQuantity || 1), totalQuantity: Number(row.totalQuantity) })))
+  } catch (error) {
+    console.error('Warehouse transfer report query failed:', error)
+    return res.status(500).json({ error: 'Warehouse transfer report query failed' })
+  } finally { await client.end().catch(() => undefined) }
+})
+
 app.post('/sales-invoices', async (req, res) => {
   if (!databaseUrl) return res.status(503).json({ error: 'Database not configured' })
   const { invoiceNo, invoiceDate, customerCode, customerName, salesRepresentative, saleType, warehouseCode, totalAmount, lines } = req.body ?? {}

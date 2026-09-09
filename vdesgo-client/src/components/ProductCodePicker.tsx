@@ -7,9 +7,11 @@ type ProductCodePickerProps = {
   value: string
   onChange: (value: string) => void
   onSelect: (product: Product) => void
+  onCommit?: () => void
+  hidden?: boolean
 }
 
-export function ProductCodePicker({ products, value, onChange, onSelect }: ProductCodePickerProps) {
+export function ProductCodePicker({ products, value, onChange, onSelect, onCommit, hidden = false }: ProductCodePickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const visibleProducts = products.filter((product) => `${product.code} ${product.name}`.toLocaleLowerCase('tr-TR').includes(search.toLocaleLowerCase('tr-TR')))
@@ -21,8 +23,8 @@ export function ProductCodePicker({ products, value, onChange, onSelect }: Produ
   }
 
   return <>
-    <div className="product-code-picker-input">
-      <input autoComplete="off" value={value} onChange={(event) => onChange(event.target.value)} placeholder="Ürün kodu yazınız" />
+    <div className={`product-code-picker-input${hidden ? ' is-hidden' : ''}`}>
+      <input autoComplete="off" value={value} onBlur={onCommit} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Tab') onCommit?.() }} placeholder="Ürün kodu yazınız" />
       <button aria-label="Ürün listesini aç" className="secondary-action" onClick={() => setOpen(true)} type="button">Ürün seç</button>
     </div>
     {open && <div className="customer-picker-backdrop" onClick={() => setOpen(false)}>

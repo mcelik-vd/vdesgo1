@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, LogOut, Maximize2, Minus, Square, X } from 'lucide-react'
+import { ChevronDown, Fullscreen, LogOut, Maximize2, Minimize, Minus, Square, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { DefinitionWindow } from '../components/windows/DefinitionWindow'
 import { CustomersWindow } from '../components/windows/CustomersWindow'
@@ -20,6 +20,7 @@ import { CollectionEntryWindow } from '../components/windows/CollectionEntryWind
 import { ReceiptEntryWindow } from '../components/windows/ReceiptEntryWindow'
 import { WarehouseOperationsListWindow } from '../components/windows/WarehouseOperationsListWindow'
 import { StockReportsWindow } from '../components/windows/StockReportsWindow'
+import { WarehouseTransferReportsWindow } from '../components/windows/WarehouseTransferReportsWindow'
 import { PromotionPolicyWindow } from '../components/windows/PromotionPolicyWindow'
 import { useUnsavedWorkGuard } from '../hooks/useUnsavedWorkGuard'
 import { useWindowStore } from '../stores/useWindowStore'
@@ -63,6 +64,10 @@ const warehouseOperationModules: DefinitionModule[] = [
 const reportModules: DefinitionModule[] = [
   { moduleName: 'StockReports', title: 'Stok Raporları', description: 'Depo stok durumuna ilişkin raporlar burada görüntülenir.' },
   { moduleName: 'SalesReports', title: 'Satış Raporları', description: 'Satış performansı ve satış hareketlerine ilişkin raporlar burada görüntülenir.' },
+]
+const stockReportModules: DefinitionModule[] = [
+  { moduleName: 'StockReports', title: 'Stok Raporu', description: 'Depo stok durumuna ilişkin raporlar burada görüntülenir.' },
+  { moduleName: 'WarehouseTransferReports', title: 'Depolar Arası Stok Hareketleri', description: 'Depolar arasındaki transfer hareketleri tarih, depo ve ürün bazında raporlanır.' },
 ]
 
 const representativeOperationModules: DefinitionModule[] = [
@@ -119,6 +124,7 @@ export function WorkspacePage() {
   const [representativeOperationsOpen, setRepresentativeOperationsOpen] = useState(false)
   const [invoiceOperationsOpen, setInvoiceOperationsOpen] = useState(false)
   const [collectionOperationsOpen, setCollectionOperationsOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [savingRequest, setSavingRequest] = useState(false)
   const [generalMenuExpanded, setGeneralMenuExpanded] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ role?: string; distributor?: string; username?: string; accountType?: 'factory' | 'distributor' } | null>(null)
@@ -249,11 +255,22 @@ export function WorkspacePage() {
     navigate('/login', { replace: true })
   }
 
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) await document.exitFullscreen()
+    else await document.documentElement.requestFullscreen()
+  }
+
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
   const launch = (module: DefinitionModule) => {
     const isFactoryUser = currentUser?.accountType === 'factory'
     const isDistributorUser = currentUser?.accountType === 'distributor'
     const isWarehouseOperation = warehouseOperationModules.some((item) => item.moduleName === module.moduleName)
-    const isReport = reportModules.some((item) => item.moduleName === module.moduleName)
+    const isReport = [...reportModules, ...stockReportModules].some((item) => item.moduleName === module.moduleName)
     const isRepresentativeOperation = representativeOperationModules.some((item) => item.moduleName === module.moduleName)
     const isInvoiceOperation = invoiceOperationModules.some((item) => item.moduleName === module.moduleName)
     const isCollectionOperation = collectionOperationModules.some((item) => item.moduleName === module.moduleName)
@@ -471,14 +488,15 @@ export function WorkspacePage() {
               <div className="definitions-dropdown" role="menu">
                 <div className="definitions-group-items">
                   {reportModules.map((module) => (
-                    <button key={module.moduleName} onClick={() => launch(module)} role="menuitem" type="button">
-                      {module.title}
-                    </button>
+                    module.moduleName === 'StockReports' ? <div className="definitions-submenu" key={module.moduleName}><button className="definitions-submenu-trigger" type="button">{module.title}<ChevronDown size={14} /></button><div className="definitions-submenu-items">{stockReportModules.map((submodule) => <button key={submodule.moduleName} onClick={() => void launch(submodule)} role="menuitem" type="button">{submodule.title}</button>)}</div></div> : <button key={module.moduleName} onClick={() => void launch(module)} role="menuitem" type="button">{module.title}</button>
                   ))}
                 </div>
               </div>
             )}
           </div>
+          <button aria-label={isFullscreen ? 'Tam ekrandan çık' : 'Tam ekran'} className="ghost-button workspace-fullscreen" onClick={() => void toggleFullscreen()} type="button">
+            {isFullscreen ? <Minimize size={15} /> : <Fullscreen size={15} />} {isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
+          </button>
           <button className="ghost-button workspace-logout" onClick={handleLogout} type="button">
             <LogOut size={15} /> Çıkış
           </button>
@@ -554,6 +572,8 @@ export function WorkspacePage() {
                     <WarehouseOperationsListWindow />
                   ) : workWindow.moduleName === 'StockReports' ? (
                     <StockReportsWindow />
+                  ) : workWindow.moduleName === 'WarehouseTransferReports' ? (
+                    <WarehouseTransferReportsWindow />
                   ) : workWindow.moduleName === 'SalesRepresentativeDefinition' ? (
                     <SalesRepresentativeWindow />
                   ) : (
