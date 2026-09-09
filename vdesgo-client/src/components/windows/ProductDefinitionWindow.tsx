@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type Product = {
   code: string
@@ -33,6 +33,7 @@ type ModuleAccess = { visible: boolean; actions?: { view?: boolean; create?: boo
 
 const tabs = ['Ürün Tanımlama', 'Ürün Fiyat Tanımlama', 'Ürün Grup Tanımlama', 'Ürün Tipi Tanımlama']
 const emptyProduct = () => ({ code: '', name: '', category: '', productType: '', unit: 'Koli', vat: '%10', ePoint: '', volume: '', weight: '' })
+const getYearEnd = (date: string) => date ? `${date.slice(0, 4)}-12-31` : ''
 
 export function ProductDefinitionWindow() {
   const [activeTab, setActiveTab] = useState(tabs[0])
@@ -56,6 +57,7 @@ export function ProductDefinitionWindow() {
   const [productSearch, setProductSearch] = useState('')
   const [selectedPriceProductCode, setSelectedPriceProductCode] = useState<string | null>(null)
   const [priceForm, setPriceForm] = useState({ productCode: '', productName: '', startDate: '', endDate: '', purchasePrice: '', salesPrice: '', soundReturnPrice: '', damagedReturnPrice: '', recommendedSalesPrice: '', status: 'Aktif' })
+  const previousPriceStartDate = useRef('')
   const [error, setError] = useState('')
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
   const authHeaders = (() => {
@@ -100,6 +102,13 @@ export function ProductDefinitionWindow() {
       })
       .catch(() => setError('Ürün kayıtları veritabanından alınamadı.'))
   }, [apiUrl])
+
+  useEffect(() => {
+    if (priceForm.startDate && priceForm.startDate !== previousPriceStartDate.current) {
+      setPriceForm((current) => ({ ...current, endDate: getYearEnd(current.startDate) }))
+    }
+    previousPriceStartDate.current = priceForm.startDate
+  }, [priceForm.startDate])
 
   const request = async <T,>(method: 'POST' | 'PUT' | 'DELETE', resource: string, data?: unknown): Promise<T> => {
     const response = await fetch(`${apiUrl}/data/${resource}`, {
@@ -176,13 +185,18 @@ export function ProductDefinitionWindow() {
 
   const openPriceForm = (product: Product, price?: Price) => {
     setPriceForm(price ?? { productCode: product.code, productName: product.name, startDate: '', endDate: '', purchasePrice: '', salesPrice: '', soundReturnPrice: '', damagedReturnPrice: '', recommendedSalesPrice: '', status: 'Aktif' })
+    previousPriceStartDate.current = price?.startDate ?? ''
     setEditingPriceId(price?.id ?? null)
     setPriceDialogOpen(true)
   }
 
   const savePrice = async () => {
-    if (!priceForm.startDate || !priceForm.endDate || !priceForm.purchasePrice || !priceForm.salesPrice || !priceForm.soundReturnPrice || !priceForm.damagedReturnPrice || !priceForm.recommendedSalesPrice) {
-      setError('Başlangıç, bitiş ve tüm fiyat alanları zorunludur.')
+    if (!priceForm.startDate || !priceForm.purchasePrice || !priceForm.salesPrice || !priceForm.soundReturnPrice || !priceForm.damagedReturnPrice || !priceForm.recommendedSalesPrice) {
+      setError('Başlangıç tarihi ve tüm fiyat alanları zorunludur.')
+      return
+    }
+    if (priceForm.endDate && priceForm.endDate < priceForm.startDate) {
+      setError('Bitiş tarihi başlangıç tarihinden önce olamaz.')
       return
     }
     try {

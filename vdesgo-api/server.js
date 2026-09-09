@@ -408,6 +408,12 @@ const normalizeResourceValue = (resource, column, value) => {
   return value
 }
 
+const validatePriceDates = (body) => {
+  if (!body?.startDate) return 'Fiyat başlangıç tarihi zorunludur.'
+  if (body.endDate && body.endDate < body.startDate) return 'Fiyat bitiş tarihi başlangıç tarihinden önce olamaz.'
+  return null
+}
+
 const accessError = (message, statusCode = 403) => Object.assign(new Error(message), { statusCode })
 
 const getRequestTenant = async (client, req) => {
@@ -1052,6 +1058,10 @@ app.get('/data/:resource', async (req, res) => {
 app.post('/data/:resource', async (req, res) => {
   const definition = resourceDefinitions[req.params.resource]
   if (!definition || !databaseUrl) return res.status(404).json({ error: 'Resource not found' })
+  if (req.params.resource === 'prices') {
+    const dateError = validatePriceDates(req.body)
+    if (dateError) return res.status(400).json({ error: dateError })
+  }
   const isGeneratedKey = definition.key === 'id'
   const writeColumns = isGeneratedKey ? definition.columns.slice(1) : definition.columns
   const writeDbColumns = isGeneratedKey ? definition.dbColumns.slice(1) : definition.dbColumns
@@ -1076,6 +1086,10 @@ app.post('/data/:resource', async (req, res) => {
 app.put('/data/:resource/:key', async (req, res) => {
   const definition = resourceDefinitions[req.params.resource]
   if (!definition || !databaseUrl) return res.status(404).json({ error: 'Resource not found' })
+  if (req.params.resource === 'prices') {
+    const dateError = validatePriceDates(req.body)
+    if (dateError) return res.status(400).json({ error: dateError })
+  }
   const values = definition.columns.slice(1).map((column) => normalizeResourceValue(req.params.resource, column, req.body?.[column] ?? ''))
   const updates = definition.dbColumns.slice(1).map((column, index) => `${column} = $${index + 1}`).join(', ')
   const client = new pg.Client({ connectionString: databaseUrl })
