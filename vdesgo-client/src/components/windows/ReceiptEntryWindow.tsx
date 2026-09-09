@@ -227,8 +227,10 @@ export function ReceiptEntryWindow({
           if (pricesResponse.ok)
             setPrices((await pricesResponse.json()) as Price[]);
           const activeWarehouses = warehouseData.filter((warehouse: Warehouse) => warehouse.active);
-          const filteredWarehouses = receiptType !== "İade Faturası"
-            ? activeWarehouses
+          const filteredWarehouses = receiptType === "Alış Faturası"
+            ? activeWarehouses.filter((warehouse) => warehouse.type === "Merkez Depo")
+            : receiptType !== "İade Faturası"
+              ? activeWarehouses
             : returnType === "Bozuk"
               ? activeWarehouses.filter((warehouse) => warehouse.type === "İade Deposu" || warehouse.type === "Iade Deposu")
               : activeWarehouses.filter((warehouse) => warehouse.type !== "Araç Deposu" && warehouse.type !== "Arac Deposu");
@@ -505,7 +507,7 @@ export function ReceiptEntryWindow({
     if (!innerQuantity || innerQuantity <= 0)
       return window.alert("Ürün birim adedi bulunamadı.");
     const requestedBaseQuantity = quantity * innerQuantity;
-    if (warehouseStock !== null && warehouseStock < requestedBaseQuantity) {
+    if (receiptType !== "Alış Faturası" && warehouseStock !== null && warehouseStock < requestedBaseQuantity) {
       const confirmed = window.confirm(`Bu stok miktarı yetersiz. Mevcut stok: ${warehouseStock}, istenen: ${requestedBaseQuantity}. Eksi stoğa düşerek eklemek istediğinize emin misiniz?`);
       if (!confirmed) return;
     }
