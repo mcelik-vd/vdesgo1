@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "vdesgo-353a1",
     "public": "vdesgo-client/dist",
     "ignore": [
       "firebase.json",
