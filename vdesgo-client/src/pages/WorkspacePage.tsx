@@ -263,6 +263,9 @@ export function WorkspacePage() {
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', handleFullscreenChange)
+    if (!document.fullscreenElement) {
+      void document.documentElement.requestFullscreen().catch(() => undefined)
+    }
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
