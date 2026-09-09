@@ -197,7 +197,7 @@ export function ReceiptEntryWindow({
       setPromotions([]);
       return;
     }
-    fetch(`${apiUrl}/promotions`)
+    fetch(`${apiUrl}/promotions`, { headers: authHeaders })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((data: Promotion[]) => setPromotions(data))
       .catch(() => setPromotions([]));
