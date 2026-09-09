@@ -590,6 +590,63 @@ app.get('/inventory/stock', async (req, res) => {
   } finally { await client.end().catch(() => undefined) }
 })
 
+app.get('/inventory/stock-report', async (req, res) => {
+  if (!databaseUrl) return res.status(503).json({ error: 'Database not configured' })
+  const client = new pg.Client({ connectionString: databaseUrl })
+  try {
+    await client.connect()
+    const tenantCode = await getRequestTenant(client, req)
+    const result = await client.query(`
+      WITH movements AS (
+        SELECT e.entering_warehouse_code AS warehouse_code, l.product_code, SUM(l.total_quantity) AS quantity
+        FROM other_stock_entry_lines l INNER JOIN other_stock_entries e ON e.id = l.entry_id
+        WHERE e.tenant_code IS NOT DISTINCT FROM $1
+        GROUP BY e.entering_warehouse_code, l.product_code
+        UNION ALL
+        SELECT e.exiting_warehouse_code, l.product_code, -SUM(l.total_quantity)
+        FROM other_stock_exit_lines l INNER JOIN other_stock_exits e ON e.id = l.exit_id
+        WHERE e.tenant_code IS NOT DISTINCT FROM $1
+        GROUP BY e.exiting_warehouse_code, l.product_code
+        UNION ALL
+        SELECT t.entering_warehouse_code, l.product_code, SUM(l.total_quantity)
+        FROM warehouse_transfer_lines l INNER JOIN warehouse_transfers t ON t.id = l.transfer_id
+        WHERE t.tenant_code IS NOT DISTINCT FROM $1
+        GROUP BY t.entering_warehouse_code, l.product_code
+        UNION ALL
+        SELECT t.exiting_warehouse_code, l.product_code, -SUM(l.total_quantity)
+        FROM warehouse_transfer_lines l INNER JOIN warehouse_transfers t ON t.id = l.transfer_id
+        WHERE t.tenant_code IS NOT DISTINCT FROM $1
+        GROUP BY t.exiting_warehouse_code, l.product_code
+        UNION ALL
+        SELECT v.entering_warehouse_code, l.product_code, SUM(l.total_quantity)
+        FROM vehicle_loading_lines l INNER JOIN vehicle_loadings v ON v.id = l.loading_id
+        WHERE v.tenant_code IS NOT DISTINCT FROM $1
+        GROUP BY v.entering_warehouse_code, l.product_code
+        UNION ALL
+        SELECT v.exiting_warehouse_code, l.product_code, -SUM(l.total_quantity)
+        FROM vehicle_loading_lines l INNER JOIN vehicle_loadings v ON v.id = l.loading_id
+        WHERE v.tenant_code IS NOT DISTINCT FROM $1
+        GROUP BY v.exiting_warehouse_code, l.product_code
+        UNION ALL
+        SELECT i.warehouse_code, l.product_code, -SUM(l.total_quantity)
+        FROM sales_invoice_lines l INNER JOIN sales_invoices i ON i.id = l.invoice_id
+        GROUP BY i.warehouse_code, l.product_code
+      )
+      SELECT w.code AS "warehouseCode", w.name AS "warehouseName", p.code AS "productCode", p.name AS "productName",
+        p.unit, p.category, p.product_type AS "productType", COALESCE(SUM(m.quantity), 0) AS "baseQuantity"
+      FROM factory_warehouses w CROSS JOIN factory_products p
+      LEFT JOIN movements m ON m.warehouse_code = w.code AND m.product_code = p.code
+      WHERE w.active = TRUE AND ($1::VARCHAR IS NULL OR w.tenant_code IS NOT DISTINCT FROM $1)
+      GROUP BY w.code, w.name, p.code, p.name, p.unit, p.category, p.product_type
+      ORDER BY w.name, p.name
+    `, [tenantCode])
+    return res.json(result.rows.map((row) => ({ ...row, baseQuantity: Number(row.baseQuantity) })))
+  } catch (error) {
+    console.error('Stock report query failed:', error)
+    return res.status(500).json({ error: 'Stock report query failed' })
+  } finally { await client.end().catch(() => undefined) }
+})
+
 app.post('/sales-invoices', async (req, res) => {
   if (!databaseUrl) return res.status(503).json({ error: 'Database not configured' })
   const { invoiceNo, invoiceDate, customerCode, customerName, salesRepresentative, saleType, warehouseCode, totalAmount, lines } = req.body ?? {}

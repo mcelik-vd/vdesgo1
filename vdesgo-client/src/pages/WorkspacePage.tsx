@@ -19,6 +19,7 @@ import { CollectionOperationsWindow } from '../components/windows/CollectionOper
 import { CollectionEntryWindow } from '../components/windows/CollectionEntryWindow'
 import { ReceiptEntryWindow } from '../components/windows/ReceiptEntryWindow'
 import { WarehouseOperationsListWindow } from '../components/windows/WarehouseOperationsListWindow'
+import { StockReportsWindow } from '../components/windows/StockReportsWindow'
 import { PromotionPolicyWindow } from '../components/windows/PromotionPolicyWindow'
 import { useUnsavedWorkGuard } from '../hooks/useUnsavedWorkGuard'
 import { useWindowStore } from '../stores/useWindowStore'
@@ -551,6 +552,8 @@ export function WorkspacePage() {
                     <ReceiptEntryWindow receiptType={{ SalesInvoiceEntry: 'Satış Faturası', PurchaseInvoiceEntry: 'Alış Faturası', ReturnInvoiceEntry: 'İade Faturası', OrderEntry: 'Sipariş' }[workWindow.moduleName] as 'Satış Faturası' | 'Alış Faturası' | 'İade Faturası' | 'Sipariş'} saleType={workWindow.receiptSaleType} returnType={workWindow.receiptReturnType} onMissingSalesRepresentative={workWindow.moduleName === 'SalesInvoiceEntry' ? () => launch(representativeOperationModules[0]) : undefined} onSaved={['SalesInvoiceEntry', 'PurchaseInvoiceEntry', 'ReturnInvoiceEntry', 'OrderEntry'].includes(workWindow.moduleName) ? (record) => openReceiptOperationsAfterSave(workWindow.id, ({ SalesInvoiceEntry: 'Satış Faturası', PurchaseInvoiceEntry: 'Alış Faturası', ReturnInvoiceEntry: 'İade Faturası', OrderEntry: 'Sipariş' }[workWindow.moduleName] as 'Satış Faturası' | 'Alış Faturası' | 'İade Faturası' | 'Sipariş'), record) : undefined} />
                   ) : workWindow.moduleName === 'WarehouseOperationsList' ? (
                     <WarehouseOperationsListWindow />
+                  ) : workWindow.moduleName === 'StockReports' ? (
+                    <StockReportsWindow />
                   ) : workWindow.moduleName === 'SalesRepresentativeDefinition' ? (
                     <SalesRepresentativeWindow />
                   ) : (

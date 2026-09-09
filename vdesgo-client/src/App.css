@@ -135,6 +135,24 @@ h1 { margin: 0; font-size: 28px; font-weight: 700; }
 .product-picker-list button { display: flex; align-items: center; gap: 12px; border: 0; padding: 10px; text-align: left; color: #304434; background: #fff; cursor: pointer; }
 .product-picker-list button:hover { background: #edf6ef; }
 .product-picker-list button span { color: #607064; }
+.stock-reports-window { display: flex; flex-direction: column; gap: 14px; min-width: 0; height: 100%; }
+.stock-report-panel { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
+.stock-report-toolbar { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; }
+.stock-report-toolbar label { display: grid; gap: 5px; color: #526656; font-size: 11px; font-weight: 700; }
+.stock-report-toolbar input, .stock-report-toolbar select { width: 100%; min-width: 0; border: 1px solid #b6c6b8; border-radius: 3px; padding: 8px; color: #16221b; background: #fff; font: inherit; font-weight: 400; }
+.stock-report-filter { display: grid; gap: 5px; color: #526656; font-size: 11px; font-weight: 700; position: relative; }
+.stock-report-filter-button { width: 100%; min-width: 0; overflow: hidden; border: 1px solid #b6c6b8; border-radius: 3px; padding: 8px; text-align: left; color: #16221b; background: #fff; font: inherit; font-weight: 400; cursor: pointer; }
+.stock-report-picker-backdrop { position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; padding: 20px; background: #16221b73; }
+.stock-report-picker { width: min(520px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; gap: 12px; overflow: hidden; padding: 18px; border: 1px solid #8fa495; border-radius: 6px; background: #fbfdfb; box-shadow: 0 18px 45px #16221b4d; }
+.stock-report-picker-actions { display: flex; gap: 8px; }
+.stock-report-picker-list { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; padding: 4px; border: 1px solid #c9d7cc; background: #f7faf8; }
+.stock-report-picker-list label { display: flex; align-items: center; gap: 9px; padding: 9px; border-bottom: 1px solid #e1e8e2; color: #304434; background: #fff; cursor: pointer; }
+.stock-report-picker-list label:hover { background: #edf6ef; }
+.stock-report-summary { display: flex; gap: 28px; padding: 10px 12px; border: 1px solid #c9d7cc; background: #f7faf8; color: #526656; font-size: 12px; }
+.stock-report-summary span { display: grid; gap: 3px; }
+.stock-report-summary strong { color: #1e6a40; font-size: 18px; }
+.stock-report-table { min-width: 820px; }
+.stock-report-quantity { color: #1e6a40; font-weight: 700; font-variant-numeric: tabular-nums; }
 .group-form { grid-template-columns: 1fr 2fr auto; align-items: end; }
 .group-form .primary-action { margin: 0; }
 .product-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: #16221b66; }
