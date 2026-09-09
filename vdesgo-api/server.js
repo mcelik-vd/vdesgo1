@@ -410,6 +410,7 @@ const normalizeResourceValue = (resource, column, value) => {
 
 const validatePriceDates = (body) => {
   if (!body?.startDate) return 'Fiyat başlangıç tarihi zorunludur.'
+  if (!body?.endDate) return 'Fiyat bitiş tarihi zorunludur.'
   if (body.endDate && body.endDate < body.startDate) return 'Fiyat bitiş tarihi başlangıç tarihinden önce olamaz.'
   return null
 }

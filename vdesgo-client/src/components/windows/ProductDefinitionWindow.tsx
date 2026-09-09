@@ -34,9 +34,18 @@ type ModuleAccess = { visible: boolean; actions?: { view?: boolean; create?: boo
 const tabs = ['Ürün Tanımlama', 'Ürün Fiyat Tanımlama', 'Ürün Grup Tanımlama', 'Ürün Tipi Tanımlama']
 const emptyProduct = () => ({ code: '', name: '', category: '', productType: '', unit: 'Koli', vat: '%10', ePoint: '', volume: '', weight: '' })
 const getYearEnd = (date: string) => date ? `${date.slice(0, 4)}-12-31` : ''
+const getAccountType = () => {
+  try {
+    return (JSON.parse(localStorage.getItem('vdesgo-user') || '{}') as { accountType?: string }).accountType || ''
+  } catch {
+    return ''
+  }
+}
 
 export function ProductDefinitionWindow() {
-  const [activeTab, setActiveTab] = useState(tabs[0])
+  const isDistributor = getAccountType() === 'distributor'
+  const visibleTabs = isDistributor ? [tabs[0]] : tabs
+  const [activeTab, setActiveTab] = useState(visibleTabs[0])
   const [products, setProducts] = useState<Product[]>([])
   const [groups, setGroups] = useState<ProductGroup[]>([])
   const [types, setTypes] = useState<ProductType[]>([])
@@ -72,6 +81,10 @@ export function ProductDefinitionWindow() {
   const canCreate = moduleAccess.actions?.create !== false
   const canEdit = moduleAccess.actions?.edit !== false
   const canDelete = moduleAccess.actions?.delete !== false
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) setActiveTab(visibleTabs[0])
+  }, [activeTab, visibleTabs])
 
   useEffect(() => {
     try {
@@ -191,8 +204,18 @@ export function ProductDefinitionWindow() {
   }
 
   const savePrice = async () => {
-    if (!priceForm.startDate || !priceForm.purchasePrice || !priceForm.salesPrice || !priceForm.soundReturnPrice || !priceForm.damagedReturnPrice || !priceForm.recommendedSalesPrice) {
-      setError('Başlangıç tarihi ve tüm fiyat alanları zorunludur.')
+    const requiredPriceFields: Array<[keyof typeof priceForm, string]> = [
+      ['startDate', 'Başlangıç tarihi'],
+      ['endDate', 'Bitiş tarihi'],
+      ['purchasePrice', 'Alış fiyatı'],
+      ['salesPrice', 'Satış fiyatı'],
+      ['soundReturnPrice', 'Sağlam iade fiyatı'],
+      ['damagedReturnPrice', 'Bozuk iade fiyatı'],
+      ['recommendedSalesPrice', 'Tavsiye edilen satış fiyatı'],
+    ]
+    const missingField = requiredPriceFields.find(([field]) => !String(priceForm[field] ?? '').trim())
+    if (missingField) {
+      setError(`${missingField[1]} zorunludur.`)
       return
     }
     if (priceForm.endDate && priceForm.endDate < priceForm.startDate) {
@@ -274,7 +297,7 @@ export function ProductDefinitionWindow() {
 
   return <div className="product-definition-window">
     <div className="definition-tabs" role="tablist">
-      {tabs.map((tab) => <button aria-selected={activeTab === tab} className={activeTab === tab ? 'is-selected' : ''} key={tab} onClick={() => setActiveTab(tab)} role="tab" type="button">{tab}</button>)}
+      {visibleTabs.map((tab) => <button aria-selected={activeTab === tab} className={activeTab === tab ? 'is-selected' : ''} key={tab} onClick={() => setActiveTab(tab)} role="tab" type="button">{tab}</button>)}
     </div>
     {error && <p className="unit-error">{error}</p>}
 

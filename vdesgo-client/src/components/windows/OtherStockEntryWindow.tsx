@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ProductCodePicker } from '../ProductCodePicker'
 
 type Product = { code: string; name: string; active: boolean }
 type ProductUnit = { productCode: string; unit: string; innerQuantity: string; barcode: string }
@@ -47,9 +48,9 @@ export function OtherStockEntryWindow({ onSaved }: { onSaved?: () => void }) {
       .catch(() => setMessage('Sair giriş bilgileri alınamadı.'))
   }, [apiUrl])
 
-  const findProduct = () => {
+  const findProduct = (selectedProduct?: Product) => {
     const code = line.productCode.trim().toLocaleLowerCase('tr-TR')
-    const product = products.find((item) => item.code.toLocaleLowerCase('tr-TR') === code)
+    const product = selectedProduct || products.find((item) => item.code.toLocaleLowerCase('tr-TR') === code)
     if (!product) {
       setLine((current) => ({ ...current, productName: '', unit: '', innerQuantity: '' }))
       setMessage('Ürün kodu bulunamadı.')
@@ -137,7 +138,7 @@ export function OtherStockEntryWindow({ onSaved }: { onSaved?: () => void }) {
       <section className="shipment-form-panel">
         <div className="definition-panel-heading"><div><p className="definition-kicker">ÜRÜN SEÇİMİ</p><h2>Giriş Ürünü</h2></div></div>
         <div className="shipment-form-grid other-stock-entry-product-grid">
-          <label>Ürün Kodu<input autoComplete="off" value={line.productCode} onBlur={findProduct} onChange={(event) => setLine({ ...line, productCode: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Tab') findProduct() }} placeholder="Ürün kodu yazınız" /></label>
+          <label>Ürün Kodu<div><ProductCodePicker products={products} value={line.productCode} onChange={(value) => setLine({ ...line, productCode: value })} onSelect={(product) => findProduct(product)} /></div></label>
           <label>Ürün Adı<input value={line.productName} readOnly placeholder="Kod sonrası otomatik gelir" /></label>
           <label>Birim<select value={line.unit} onChange={(event) => { const selected = productUnits.find((item) => item.unit === event.target.value); setLine({ ...line, unit: event.target.value, innerQuantity: selected?.innerQuantity || '' }) }}><option value="">Birim seçiniz</option>{productUnits.map((item) => <option key={`${item.productCode}-${item.barcode}`} value={item.unit}>{item.unit}</option>)}</select></label>
           <label>Birim İçeriği<div className="entry-info-value">{line.innerQuantity || '-'}</div></label>
