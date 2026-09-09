@@ -705,6 +705,7 @@ app.post('/sales-invoices', async (req, res) => {
   const client = new pg.Client({ connectionString: databaseUrl })
   const parseBalance = (value) => parseMoneyNumber(value)
   const formatBalance = (value) => formatMoney(value)
+  const numericTotal = parseMoneyNumber(totalAmount)
   try {
     await client.connect(); await client.query('BEGIN')
     const tenantCode = await getRequestTenant(client, req)
@@ -724,16 +725,16 @@ app.post('/sales-invoices', async (req, res) => {
         - COALESCE((SELECT SUM(l.total_quantity) FROM sales_invoice_lines l INNER JOIN sales_invoices i ON i.id = l.invoice_id WHERE i.warehouse_code = $1 AND l.product_code = $2), 0) AS "baseQuantity"
       `, [warehouseCode, line.productCode])
     }
-    const invoice = await client.query('INSERT INTO sales_invoices (invoice_no, invoice_date, customer_code, customer_name, sales_representative, sale_type, warehouse_code, total_amount, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, invoice_no AS "invoiceNo"', [invoiceNo, invoiceDate, customerCode, customerName || '', salesRepresentative || '', saleType || null, warehouseCode, Number(totalAmount || 0), req.header('x-vdesgo-username') || null])
+    const invoice = await client.query('INSERT INTO sales_invoices (invoice_no, invoice_date, customer_code, customer_name, sales_representative, sale_type, warehouse_code, total_amount, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, invoice_no AS "invoiceNo"', [invoiceNo, invoiceDate, customerCode, customerName || '', salesRepresentative || '', saleType || null, warehouseCode, numericTotal, req.header('x-vdesgo-username') || null])
     for (const line of lines) {
       const totalQuantity = Number(line.quantity) * Number(line.innerQuantity || 1)
       await client.query('INSERT INTO sales_invoice_lines (invoice_id, product_code, product_name, unit, quantity, inner_quantity, total_quantity, unit_price, line_total, is_promotional) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [invoice.rows[0].id, line.productCode, line.productName, line.unit, Number(line.quantity), Number(line.innerQuantity || 1), totalQuantity, Number(line.unitPrice || 0), Number(line.lineTotal || 0), line.isPromotional === true])
     }
-    const nextBalance = parseBalance(customer.rows[0].balance) + Number(totalAmount || 0)
+    const nextBalance = parseBalance(customer.rows[0].balance) + numericTotal
     await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [formatBalance(nextBalance), customerCode])
-    await recordAudit(client, req, { entityType: 'sales_invoice', entityId: invoice.rows[0].id, action: 'create', newValue: { ...invoice.rows[0], customerCode, warehouseCode, totalAmount: Number(totalAmount || 0) } })
+    await recordAudit(client, req, { entityType: 'sales_invoice', entityId: invoice.rows[0].id, action: 'create', newValue: { ...invoice.rows[0], customerCode, warehouseCode, totalAmount: numericTotal } })
     await client.query('COMMIT')
-    return res.status(201).json({ ...invoice.rows[0], customerCode, salesRepresentative, saleType, totalAmount: Number(totalAmount || 0) })
+    return res.status(201).json({ ...invoice.rows[0], customerCode, salesRepresentative, saleType, totalAmount: numericTotal })
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     return res.status(400).json({ error: error.message || 'Satış faturası kaydedilemedi.' })
@@ -745,6 +746,7 @@ app.post('/orders', async (req, res) => {
   const { orderNo, orderDate, customerCode, warehouseCode, totalAmount, stockReserved, lines } = req.body ?? {}
   if (!orderDate || !customerCode || !warehouseCode || !Array.isArray(lines) || lines.length === 0) return res.status(400).json({ error: 'Tarih, cari, depo ve ürün satırları zorunludur.' })
   const client = new pg.Client({ connectionString: databaseUrl })
+  const numericTotal = parseMoneyNumber(totalAmount)
   try {
     await client.connect(); await client.query('BEGIN')
     const tenantCode = await getRequestTenant(client, req)
@@ -752,7 +754,7 @@ app.post('/orders', async (req, res) => {
     if (warehouse.rowCount === 0) throw new Error('Depo bulunamadı veya bu kullanıcıya ait değil.')
     const customer = await client.query('SELECT code FROM customer_cards WHERE code = $1 AND (tenant_code IS NOT DISTINCT FROM $2 OR $2 IS NULL) FOR UPDATE', [customerCode, tenantCode])
     if (customer.rowCount === 0) throw new Error('Cari bulunamadı veya bu kullanıcıya ait değil.')
-    const order = await client.query('INSERT INTO orders (order_no, order_date, customer_code, warehouse_code, total_amount, stock_reserved, tenant_code, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, order_no AS "orderNo"', [orderNo || null, orderDate, customerCode, warehouseCode, Number(totalAmount || 0), stockReserved === true, tenantCode, req.header('x-vdesgo-username') || null])
+    const order = await client.query('INSERT INTO orders (order_no, order_date, customer_code, warehouse_code, total_amount, stock_reserved, tenant_code, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, order_no AS "orderNo"', [orderNo || null, orderDate, customerCode, warehouseCode, numericTotal, stockReserved === true, tenantCode, req.header('x-vdesgo-username') || null])
     for (const line of lines) {
       const totalQuantity = Number(line.quantity) * Number(line.innerQuantity || 1)
       await client.query('INSERT INTO order_lines (order_id, product_code, product_name, unit, quantity, inner_quantity, total_quantity, unit_price, line_total) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [order.rows[0].id, line.productCode, line.productName, line.unit, Number(line.quantity), Number(line.innerQuantity || 1), totalQuantity, Number(line.unitPrice || 0), Number(line.lineTotal || 0)])
@@ -780,9 +782,9 @@ app.post('/orders', async (req, res) => {
         await client.query('INSERT INTO other_stock_exit_lines (exit_id, product_code, product_name, unit, inner_quantity, quantity, total_quantity) VALUES ($1,$2,$3,$4,$5,$6,$7)', [exit.rows[0].id, line.productCode, line.productName, line.unit, Number(line.innerQuantity || 1), Number(line.quantity), totalQuantity])
       }
     }
-    await recordAudit(client, req, { entityType: 'order', entityId: order.rows[0].id, action: 'create', newValue: { ...order.rows[0], customerCode, warehouseCode, totalAmount: Number(totalAmount || 0), stockReserved: stockReserved === true } })
+    await recordAudit(client, req, { entityType: 'order', entityId: order.rows[0].id, action: 'create', newValue: { ...order.rows[0], customerCode, warehouseCode, totalAmount: numericTotal, stockReserved: stockReserved === true } })
     await client.query('COMMIT')
-    return res.status(201).json({ ...order.rows[0], customerCode, warehouseCode, totalAmount: Number(totalAmount || 0), stockReserved: stockReserved === true })
+    return res.status(201).json({ ...order.rows[0], customerCode, warehouseCode, totalAmount: numericTotal, stockReserved: stockReserved === true })
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     return res.status(400).json({ error: error.message || 'Sipariş kaydedilemedi.' })
@@ -816,6 +818,7 @@ const createInboundInvoice = async (req, res, config) => {
   const { invoiceNo, invoiceDate, customerCode, customerName, warehouseCode, totalAmount, lines, returnType } = req.body ?? {}
   if (!invoiceDate || !customerCode || !warehouseCode || !Array.isArray(lines) || lines.length === 0) return res.status(400).json({ error: 'Tarih, cari, depo ve ürün satırları zorunludur.' })
   const client = new pg.Client({ connectionString: databaseUrl })
+  const numericTotal = parseMoneyNumber(totalAmount)
   try {
     await client.connect(); await client.query('BEGIN')
     const tenantCode = await getRequestTenant(client, req)
@@ -824,8 +827,8 @@ const createInboundInvoice = async (req, res, config) => {
     const customer = await client.query('SELECT balance FROM customer_cards WHERE code = $1 AND (tenant_code IS NOT DISTINCT FROM $2 OR $2 IS NULL) FOR UPDATE', [customerCode, tenantCode])
     if (!customer.rowCount) throw new Error('Cari bulunamadı veya bu kullanıcıya ait değil.')
     const header = config.includeReturnType
-      ? await client.query(`INSERT INTO ${config.table} (invoice_no, invoice_date, customer_code, customer_name, warehouse_code, total_amount, return_type, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, invoice_no AS "invoiceNo"`, [invoiceNo || null, invoiceDate, customerCode, customerName || '', warehouseCode, Number(totalAmount || 0), returnType === 'Bozuk' ? 'Bozuk' : 'Sağlam', req.header('x-vdesgo-username') || null])
-      : await client.query(`INSERT INTO ${config.table} (invoice_no, invoice_date, customer_code, customer_name, warehouse_code, total_amount, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, invoice_no AS "invoiceNo"`, [invoiceNo || null, invoiceDate, customerCode, customerName || '', warehouseCode, Number(totalAmount || 0), req.header('x-vdesgo-username') || null])
+      ? await client.query(`INSERT INTO ${config.table} (invoice_no, invoice_date, customer_code, customer_name, warehouse_code, total_amount, return_type, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, invoice_no AS "invoiceNo"`, [invoiceNo || null, invoiceDate, customerCode, customerName || '', warehouseCode, numericTotal, returnType === 'Bozuk' ? 'Bozuk' : 'Sağlam', req.header('x-vdesgo-username') || null])
+      : await client.query(`INSERT INTO ${config.table} (invoice_no, invoice_date, customer_code, customer_name, warehouse_code, total_amount, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, invoice_no AS "invoiceNo"`, [invoiceNo || null, invoiceDate, customerCode, customerName || '', warehouseCode, numericTotal, req.header('x-vdesgo-username') || null])
     for (const line of lines) {
       const quantity = Number(line.quantity)
       const innerQuantity = Number(line.innerQuantity || 1)
@@ -840,10 +843,10 @@ const createInboundInvoice = async (req, res, config) => {
       const innerQuantity = Number(line.innerQuantity || 1)
       await client.query('INSERT INTO other_stock_entry_lines (entry_id, product_code, product_name, unit, inner_quantity, quantity, total_quantity) VALUES ($1,$2,$3,$4,$5,$6,$7)', [entry.rows[0].id, line.productCode, line.productName, line.unit, String(innerQuantity), quantity, quantity * innerQuantity])
     }
-    const nextBalance = parseAccountBalance(customer.rows[0].balance) + Number(config.balanceDelta) * Number(totalAmount || 0)
-    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [formatAccountBalance(nextBalance), customerCode])
+    const nextBalance = parseAccountBalance(customer.rows[0].balance) + Number(config.balanceDelta) * numericTotal
+    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [nextBalance, customerCode])
     await client.query('COMMIT')
-    return res.status(201).json({ ...header.rows[0], customerCode, totalAmount: Number(totalAmount || 0) })
+    return res.status(201).json({ ...header.rows[0], customerCode, totalAmount: numericTotal })
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     return res.status(400).json({ error: error.message || `${config.label} kaydedilemedi.` })
@@ -888,7 +891,7 @@ app.post('/collection-operations', async (req, res) => {
     if (!customer.rowCount) throw new Error('Cari bulunamadı veya bu kullanıcıya ait değil.')
     const balanceDelta = operationType === 'Bakiye Yükseltme' ? 1 : -1
     const nextBalance = parseAccountBalance(customer.rows[0].balance) + balanceDelta * numericAmount
-    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [formatAccountBalance(nextBalance), customerCode])
+    await client.query('UPDATE customer_cards SET balance = $1 WHERE code = $2', [nextBalance, customerCode])
     const operation = await client.query('INSERT INTO customer_collection_operations (customer_code, operation_type, amount, description, operation_date, balance_delta, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, operation_type AS "operationType", operation_date AS "operationDate", customer_code AS "customerCode", amount, description', [customerCode, operationType, numericAmount, description.trim(), operationDate, balanceDelta, req.header('x-vdesgo-username') || null])
     await client.query('COMMIT')
     return res.status(201).json({ ...operation.rows[0], customerName: customer.rows[0].name, customerTitle: customer.rows[0].title, previousBalance: customer.rows[0].balance, newBalance: formatAccountBalance(nextBalance) })
