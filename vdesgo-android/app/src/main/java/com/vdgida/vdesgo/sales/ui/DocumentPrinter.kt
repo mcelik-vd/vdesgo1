@@ -118,10 +118,7 @@ object DocumentPrinter {
                                         "$percentText%"
                                     }
                                     ?: line["discount1Percent"]?.jsonPrimitive?.doubleOrNull
-                                        ?.let { percent ->
-                                            val percentText = if (percent % 1.0 == 0.0) percent.toInt().toString()
-                                            else String.format(java.util.Locale.US, "%.2f", percent).trimEnd('0').trimEnd('.')
-                                            "$percentText%"
+                                        ?.let { percent -> "${if (percent % 1.0 == 0.0) percent.toInt() else percent}%"
                                         }
                                     ?: fallback?.manualDiscountPercent?.takeIf { it > 0.0 }
                                         ?.let { percent -> "${percent.toInt()}%" }
@@ -131,19 +128,22 @@ object DocumentPrinter {
                                     ?: line["discountAmount"]?.jsonPrimitive?.doubleOrNull
                                         ?.let(::money)
                                     ?: "",
-                                unitPrice = line["effectiveUnitPrice"]?.jsonPrimitive?.doubleOrNull
+                                unitPrice = line["baseUnitPrice"]?.jsonPrimitive?.doubleOrNull
                                     ?.let(::money)
-                                    ?: line["baseUnitPrice"]?.jsonPrimitive?.doubleOrNull
+                                    ?: line["effectiveUnitPrice"]?.jsonPrimitive?.doubleOrNull
                                         ?.let(::money)
                                     ?: fallback?.unitNetPrice?.let(::money)
                                     ?: "",
-                                lineTotal = line["grossAmount"]?.jsonPrimitive?.doubleOrNull
-                                    ?.let(::money)
-                                    ?: line["lineTotal"]?.jsonPrimitive?.doubleOrNull
-                                        ?.let(::money)
-                                    ?: fallback?.let {
-                                        money(it.quantity * (it.unitNetPrice ?: 0.0))
-                                    }.orEmpty(),
+                                lineTotal = run {
+                                    val quantity = line["quantity"]?.jsonPrimitive?.doubleOrNull
+                                        ?: fallback?.quantity
+                                        ?: 0.0
+                                    val unitPriceValue = line["baseUnitPrice"]?.jsonPrimitive?.doubleOrNull
+                                        ?: line["effectiveUnitPrice"]?.jsonPrimitive?.doubleOrNull
+                                        ?: fallback?.unitNetPrice
+                                        ?: 0.0
+                                    money(quantity * unitPriceValue)
+                                },
                             )
                         }
                     } else {

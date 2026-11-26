@@ -133,10 +133,12 @@ class BluetoothPrinter(private val context: Context) {
                 line("${lineItem.productName.take(28)}")
                 val qty = "${formatQuantity(lineItem.quantity)} ${lineItem.unitCode}"
                 val price = lineItem.unitPrice.ifBlank { "-" }
-                val amount = lineItem.lineTotal
-                val discount = lineItem.discountPercent.takeIf(String::isNotBlank)?.let { "isk $it" } ?: "isk -"
-                line(padLeftRight("$qty x $price", discount, 48))
-                line(padLeftRight("TUTAR", amount, 48))
+                val grossAmount = parseMoneyForReceipt(lineItem.quantity, lineItem.unitPrice, lineItem.lineTotal)
+                val discount = lineItem.discountPercent.takeIf(String::isNotBlank)?.let { "isk $it" } ?: "isk 0%"
+                val first = "$qty x $price"
+                val second = discount
+                val third = grossAmount
+                line(padThreeColumns(first, second, third, 48))
             }
             line("--------------------------------")
             if (receipt.subtotal.isNotBlank()) line(padLeftRight("ARA TOPLAM", receipt.subtotal, 48))
@@ -190,6 +192,26 @@ class BluetoothPrinter(private val context: Context) {
         val rightText = asciiPrintable(right)
         val spaces = (width - leftText.length - rightText.length).coerceAtLeast(1)
         return leftText + " ".repeat(spaces) + rightText
+    }
+
+    private fun padThreeColumns(first: String, second: String, third: String, width: Int): String {
+        val firstText = asciiPrintable(first).take(20)
+        val secondText = asciiPrintable(second).take(10)
+        val thirdText = asciiPrintable(third).take(18)
+        val firstGap = " ".repeat((20 - firstText.length).coerceAtLeast(1))
+        val secondGap = " ".repeat((10 - secondText.length).coerceAtLeast(1))
+        return (firstText + firstGap + secondText + secondGap + thirdText).take(width)
+    }
+
+    private fun parseMoneyForReceipt(quantity: Double, unitPrice: String, grossAmount: String): String {
+        val price = unitPrice.replace(" TL", "").replace("TL", "").replace(',', '.').trim().toDoubleOrNull()
+        val gross = grossAmount.replace(" TL", "").replace("TL", "").replace(',', '.').trim().toDoubleOrNull()
+        val indirimliGross = gross
+        if (price != null && indirimliGross != null) {
+            val grossBeforeDiscount = price * quantity
+            return String.format(java.util.Locale.US, "%.2f", grossBeforeDiscount).replace('.', ',')
+        }
+        return grossAmount
     }
 
     private fun formatQuantity(value: Double): String =
