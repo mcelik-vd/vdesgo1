@@ -1146,8 +1146,7 @@ private fun NewCustomerDialog(
         (checkedTaxKey == taxKey && taxNumberExists == false && !taxCheckLoading)
     val emailValid = email.trim().isBlank()
         || Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email.trim())
-    val canContinue = taxFieldsValid && taxCheckPassed && emailValid &&
-        province.isNotBlank() && district.isNotBlank() && customerGroupCode.isNotBlank()
+    val canContinue = taxFieldsValid && taxCheckPassed && emailValid
 
     Dialog(
         onDismissRequest = { if (!state.customerCreating) onDismiss() },
