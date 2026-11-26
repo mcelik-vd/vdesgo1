@@ -101,6 +101,17 @@ data class CustomerTypesResponse(
     val types: List<CustomerTypeOption> = emptyList(),
 )
 
+@Serializable
+data class CustomerGroupOption(
+    val code: String,
+    val name: String,
+)
+
+@Serializable
+data class CustomerGroupsResponse(
+    val groups: List<CustomerGroupOption> = emptyList(),
+)
+
 object CustomerIdentityRules {
     fun missingFieldsMessage(taxOffice: String, taxNo: String, tckn: String): String? {
         if (taxOffice.trim().isBlank()) return "Vergi dairesi zorunludur."
@@ -151,6 +162,10 @@ data class CustomerCreateRequest(
     val locationAccuracyM: Double,
     val locationCapturedAt: String,
     val routeDay: String = "",
+    val province: String = "",
+    val district: String = "",
+    val email: String = "",
+    val customerGroupCode: String = "",
     /** Maximum allowed debt balance in TL; null (omitted) means unlimited. */
     val creditLimit: Double? = null,
     val tckn: String = "",

@@ -1072,6 +1072,10 @@ private fun NewCustomerDialog(
     var tckn by rememberSaveable { mutableStateOf(initialRequest?.tckn.orEmpty()) }
     var taxOffice by rememberSaveable { mutableStateOf(initialRequest?.taxOffice.orEmpty()) }
     var address by rememberSaveable { mutableStateOf(initialRequest?.address.orEmpty()) }
+    var email by rememberSaveable { mutableStateOf(initialRequest?.email.orEmpty()) }
+    var province by rememberSaveable { mutableStateOf(initialRequest?.province.orEmpty()) }
+    var district by rememberSaveable { mutableStateOf(initialRequest?.district.orEmpty()) }
+    var customerGroupCode by rememberSaveable { mutableStateOf(initialRequest?.customerGroupCode.orEmpty()) }
     var creditLimitText by rememberSaveable {
         mutableStateOf(initialRequest?.creditLimit?.toString().orEmpty())
     }
@@ -1094,12 +1098,20 @@ private fun NewCustomerDialog(
     var routeDay by rememberSaveable { mutableStateOf(initialRequest?.routeDay.orEmpty()) }
     var customerTypeMenuExpanded by remember { mutableStateOf(false) }
     var routeDayMenuExpanded by remember { mutableStateOf(false) }
+    var provinceMenuExpanded by remember { mutableStateOf(false) }
+    var districtMenuExpanded by remember { mutableStateOf(false) }
+    var customerGroupMenuExpanded by remember { mutableStateOf(false) }
     var taxCheckAttempt by remember { mutableStateOf(0) }
     var taxCheckLoading by remember { mutableStateOf(false) }
     var checkedTaxKey by remember { mutableStateOf<String?>(null) }
     var taxNumberExists by remember { mutableStateOf<Boolean?>(null) }
     var taxCheckError by remember { mutableStateOf<String?>(null) }
     val routeDays = listOf("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar")
+    val districtsByProvince = mapOf(
+        "Antalya" to listOf("Akseki", "Alanya", "Kemer", "Kepez", "Konyaaltı", "Manavgat", "Muratpaşa", "Serik"),
+        "Burdur" to listOf("Bucak", "Gölhisar", "Merkez", "Tefenni"),
+        "İzmir" to listOf("Bornova", "Buca", "Karşıyaka", "Konak", "Urla"),
+    )
     val allowedCustomerTypes = state.customerTypes.filter { it.name.equals("Perakende", true) || it.name.equals("Horeca", true) }
     val selectedType = allowedCustomerTypes.firstOrNull { it.code == customerTypeCode }
     val taxKey = "${taxOffice.trim()}|${taxNo.trim()}|${tckn.trim()}"
@@ -1132,7 +1144,10 @@ private fun NewCustomerDialog(
 
     val taxCheckPassed = state.serverReachable != true ||
         (checkedTaxKey == taxKey && taxNumberExists == false && !taxCheckLoading)
-    val canContinue = taxFieldsValid && taxCheckPassed
+    val emailValid = email.trim().isBlank()
+        || Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email.trim())
+    val canContinue = taxFieldsValid && taxCheckPassed && emailValid &&
+        province.isNotBlank() && district.isNotBlank() && customerGroupCode.isNotBlank()
 
     Dialog(
         onDismissRequest = { if (!state.customerCreating) onDismiss() },
@@ -1243,6 +1258,70 @@ private fun NewCustomerDialog(
                             label = { Text("Adres (boşsa 0 kaydedilir)") },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it.take(254) },
+                            label = { Text("E-posta (boşsa 0 kaydedilir)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            singleLine = true,
+                            isError = email.trim().isNotBlank() && !emailValid,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (email.trim().isNotBlank() && !emailValid) {
+                            Text("Geçerli bir e-posta adresi girin.", color = MaterialTheme.colorScheme.error)
+                        }
+                        Box(Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = { provinceMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text(province.ifBlank { "İl *" })
+                            }
+                            DropdownMenu(expanded = provinceMenuExpanded, onDismissRequest = { provinceMenuExpanded = false }) {
+                                districtsByProvince.keys.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = {
+                                            province = option
+                                            district = ""
+                                            provinceMenuExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        Box(Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = { districtMenuExpanded = true }, enabled = province.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                                Text(district.ifBlank { "İlçe *" })
+                            }
+                            DropdownMenu(expanded = districtMenuExpanded, onDismissRequest = { districtMenuExpanded = false }) {
+                                districtsByProvince[province].orEmpty().forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = {
+                                            district = option
+                                            districtMenuExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        Box(Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = { customerGroupMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text(state.customerGroups.firstOrNull { it.code == customerGroupCode }?.name ?: "Cari Grup *")
+                            }
+                            DropdownMenu(expanded = customerGroupMenuExpanded, onDismissRequest = { customerGroupMenuExpanded = false }) {
+                                state.customerGroups.forEach { group ->
+                                    DropdownMenuItem(
+                                        text = { Text(group.name) },
+                                        onClick = {
+                                            customerGroupCode = group.code
+                                            customerGroupMenuExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        if (province.isBlank()) Text("İl seçilmelidir.", color = MaterialTheme.colorScheme.error)
+                        if (district.isBlank()) Text("İlçe seçilmelidir.", color = MaterialTheme.colorScheme.error)
+                        if (customerGroupCode.isBlank()) Text("Cari grup seçilmelidir.", color = MaterialTheme.colorScheme.error)
                         OutlinedButton(
                             onClick = {
                                 locationLoading = true
@@ -1364,6 +1443,10 @@ private fun NewCustomerDialog(
                                 tckn = tckn.trim(),
                                 taxOffice = taxOffice.trim(),
                                 address = CustomerIdentityRules.normalizeOptionalText(address),
+                                province = province,
+                                district = district,
+                                email = CustomerIdentityRules.normalizeOptionalText(email),
+                                customerGroupCode = customerGroupCode,
                                 location = "${reading.latitude},${reading.longitude}",
                                 locationLatitude = reading.latitude,
                                 locationLongitude = reading.longitude,

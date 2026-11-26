@@ -165,6 +165,11 @@ const dateInIstanbul = () => {
   return `${values.year}-${values.month}-${values.day}`
 }
 const routeDays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+const provinceDistricts = {
+  Antalya: ['Akseki', 'Alanya', 'Kemer', 'Kepez', 'Konyaaltı', 'Manavgat', 'Muratpaşa', 'Serik'],
+  Burdur: ['Bucak', 'Gölhisar', 'Merkez', 'Tefenni'],
+  İzmir: ['Bornova', 'Buca', 'Karşıyaka', 'Konak', 'Urla'],
+}
 const safeCoordinate = (value, min, max) => {
   if (value == null || value === '') return null
   if (!['number', 'string'].includes(typeof value) || (typeof value === 'string' && !value.trim())) return undefined
@@ -498,6 +503,10 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
     taxOffice: [body.taxOffice, 120],
     address: [body.address ?? '', 2000],
     location: [body.location ?? '', 255],
+    province: [body.province ?? '', 80],
+    district: [body.district ?? '', 80],
+    email: [body.email ?? '', 254],
+    customerGroupCode: [body.customerGroupCode ?? '', 50],
   }
   for (const [field, [value, maxLength]] of Object.entries(fields)) {
     if (typeof value !== 'string' || value.trim().length > maxLength) {
@@ -515,6 +524,22 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
   }
   if (!String(body.customerTypeCode ?? '').trim()) {
     return { status: 'rejected', code: 'CUSTOMER_TYPE_REQUIRED', result: { message: 'Müşteri tipi zorunludur.' } }
+  }
+  const province = String(body.province ?? '').trim()
+  const district = String(body.district ?? '').trim()
+  const email = String(body.email ?? '').trim() || '0'
+  const customerGroupCode = String(body.customerGroupCode ?? '').trim()
+  if (!province || !district) {
+    return { status: 'rejected', code: 'PROVINCE_DISTRICT_REQUIRED', result: { message: 'İl ve ilçe zorunludur.' } }
+  }
+  if (!provinceDistricts[province] || !provinceDistricts[province].includes(district)) {
+    return { status: 'rejected', code: 'INVALID_PROVINCE_DISTRICT', result: { message: 'Seçilen il ve ilçe geçerli değil.' } }
+  }
+  if (!customerGroupCode) {
+    return { status: 'rejected', code: 'CUSTOMER_GROUP_REQUIRED', result: { message: 'Cari grup zorunludur.' } }
+  }
+  if (email !== '0' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { status: 'rejected', code: 'INVALID_EMAIL', result: { message: 'Geçerli bir e-posta adresi girin.' } }
   }
 
   const taxNo = (body.taxNo ?? '').trim()
@@ -565,6 +590,11 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
   )
   if (!customerType.rowCount) return { status: 'rejected', code: 'INVALID_CUSTOMER_TYPE' }
   const customerTypeName = customerType.rows[0].name
+  const customerGroup = await client.query(
+    'SELECT code FROM customer_groups WHERE code = $1',
+    [customerGroupCode],
+  )
+  if (!customerGroup.rowCount) return { status: 'rejected', code: 'INVALID_CUSTOMER_GROUP' }
 
   const code = fallbackCode ?? (body.customerCode?.trim() || `MOB-${randomUUID()}`)
   if (typeof code !== 'string' || !/^MOB-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code)
@@ -574,12 +604,14 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
   const name = body.ownerName.trim() || body.businessTitle.trim() || `Müşteri ${taxNo || tckn}`
   const insertedCustomer = await client.query(
     `INSERT INTO customer_cards
-       (code, name, title, type, sales_representative, phone, mobile_phone,
-        tax_no, tax_office, address, location, location_latitude, location_longitude,
-        location_accuracy_m, location_captured_at, balance, active, tenant_code, credit_limit, tckn)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, TRUE, $16, $17, $18)
+       (code, name, title, province, district, type, sales_representative, phone, mobile_phone,
+        tax_no, tax_office, address, email, location, location_latitude, location_longitude,
+        location_accuracy_m, location_captured_at, balance, active, tenant_code, credit_limit, tckn,
+        customer_group_code)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 0, TRUE, $19, $20, $21, $22)
      RETURNING code, name, title, type, phone, mobile_phone AS "mobilePhone",
-       tax_no AS "taxNo", tckn, tax_office AS "taxOffice", address, location,
+       tax_no AS "taxNo", tckn, tax_office AS "taxOffice", address, email,
+       province, district, customer_group_code AS "customerGroupCode", location,
        location_latitude::float8 AS "locationLatitude",
        location_longitude::float8 AS "locationLongitude",
        location_accuracy_m::float8 AS "locationAccuracyM",
@@ -589,6 +621,8 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
       code,
       name,
       body.businessTitle.trim(),
+      province,
+      district,
       customerTypeName,
       context.salesRepresentativeName,
       phone,
@@ -596,6 +630,7 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
       taxNo,
       body.taxOffice.trim(),
       address,
+      email,
       body.location.trim(),
       locationLatitude,
       locationLongitude,
@@ -604,6 +639,7 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
       context.tenantCode,
       creditLimit,
       tckn,
+      customerGroupCode,
     ],
   )
   const assignment = await client.query(
@@ -2673,6 +2709,14 @@ export const createMobileRouter = ({ databaseUrl, verifyPassword }) => {
        ORDER BY CASE WHEN LOWER(name) = 'perakende' THEN 0 ELSE 1 END, code`,
     )
     return res.json({ types: result.rows })
+  }))
+
+  router.get('/customer-groups', withMobileContext(databaseUrl, 'mobile.customer.read', async ({ res, client }) => {
+    const result = await client.query(
+      `SELECT code, name FROM customer_groups
+       ORDER BY name, code`,
+    )
+    return res.json({ groups: result.rows })
   }))
 
   router.get('/customers/tax-number-check', withMobileContext(databaseUrl, 'mobile.order.create', async ({ req, res, client, context }) => {

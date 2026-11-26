@@ -14,14 +14,15 @@ test('creates a mobile customer with matching SQL columns and values', async () 
       if (sql.includes('SELECT name FROM customer_types')) {
         return { rows: [{ name: 'Perakende' }], rowCount: 1 }
       }
+      if (sql.includes('SELECT code FROM customer_groups')) return { rows: [{ code: 'G1' }], rowCount: 1 }
       if (sql.includes('INSERT INTO customer_cards')) {
         const insert = sql.match(/INSERT INTO customer_cards\s*\(([\s\S]*?)\)\s*VALUES\s*\(([\s\S]*?)\)/)
         assert.ok(insert, 'customer insert statement must expose columns and values')
         assert.equal(insert[1].split(',').length, insert[2].split(',').length)
-        assert.equal(values.length, 18)
+        assert.equal(values.length, 22)
         assert.deepEqual(
           [...insert[2].matchAll(/\$(\d+)/g)].map(([, index]) => Number(index)),
-          Array.from({ length: 18 }, (_, index) => index + 1),
+          Array.from({ length: 22 }, (_, index) => index + 1),
         )
         return { rows: [{ code: customerCode }], rowCount: 1 }
       }
@@ -58,6 +59,7 @@ test('creates a mobile customer with matching SQL columns and values', async () 
       locationLongitude: 29,
       locationAccuracyM: 10,
       locationCapturedAt: capturedAt,
+      province: 'Antalya', district: 'Alanya', email: '', customerGroupCode: 'G1',
       routeDay: 'Cuma',
     },
     customerCode,
@@ -65,9 +67,9 @@ test('creates a mobile customer with matching SQL columns and values', async () 
 
   assert.equal(result.status, 'accepted')
   const customerInsert = statements.find(({ sql }) => sql.includes('INSERT INTO customer_cards'))
-  assert.equal(customerInsert.values[14], capturedAt)
-  assert.equal(customerInsert.values[15], 'test-tenant')
-  assert.equal(customerInsert.values[17], '11111111111')
+  assert.equal(customerInsert.values[17], capturedAt)
+  assert.equal(customerInsert.values[18], 'test-tenant')
+  assert.equal(customerInsert.values[20], '11111111111')
 })
 
 test('accepts TCKN without VKN, validates it and checks both identity columns for duplicates', async () => {
@@ -83,6 +85,7 @@ test('accepts TCKN without VKN, validates it and checks both identity columns fo
         return { rows: duplicate ? [{}] : [], rowCount: duplicate ? 1 : 0 }
       }
       if (sql.includes('SELECT name FROM customer_types')) return { rows: [{ name: 'Perakende' }], rowCount: 1 }
+      if (sql.includes('SELECT code FROM customer_groups')) return { rows: [{ code: 'G1' }], rowCount: 1 }
       if (sql.includes('INSERT INTO customer_cards')) return { rows: [{ code: 'test' }], rowCount: 1 }
       if (sql.includes('INSERT INTO sales_rep_customers')) return { rows: [{}], rowCount: 1 }
       if (sql.includes('INSERT INTO audit_logs')) return { rows: [], rowCount: 1 }
@@ -95,12 +98,13 @@ test('accepts TCKN without VKN, validates it and checks both identity columns fo
     phone: '', mobilePhone: '', taxNo: '', tckn: '11111111111', taxOffice: 'Test',
     address: '', location: '', locationLatitude: 41, locationLongitude: 29,
     locationAccuracyM: 10, locationCapturedAt: '2026-10-30T12:00:00.000Z', routeDay: 'Cuma',
+    province: 'Antalya', district: 'Alanya', email: '', customerGroupCode: 'G1',
   }
   const run = (input) => createMobileCustomer(client, { ip: '127.0.0.1' }, context, input, 'MOB-12345678-1234-1234-1234-123456789abc')
   assert.equal((await run(body)).status, 'accepted')
   const insert = statements.find(({ sql }) => sql.includes('INSERT INTO customer_cards'))
-  assert.equal(insert.values[7], '')
-  assert.equal(insert.values[17], body.tckn)
+  assert.equal(insert.values[9], '')
+  assert.equal(insert.values[20], body.tckn)
   assert.equal((await run({ ...body, tckn: '' })).code, 'TAX_IDENTITY_REQUIRED')
   assert.equal((await run({ ...body, tckn: '123' })).code, 'INVALID_TCKN')
   duplicate = true
@@ -115,6 +119,9 @@ test('rejects missing or malformed customer identity fields before database writ
     taxOffice: 'Test', address: '', location: '', locationLatitude: 41,
     locationLongitude: 29, locationAccuracyM: 10,
     locationCapturedAt: '2026-10-30T12:00:00.000Z', routeDay: 'Cuma',
+    province: 'Antalya', district: 'Alanya', email: '', customerGroupCode: 'G1',
+    province: 'Antalya', district: 'Alanya', email: '', customerGroupCode: 'G1',
+    province: 'Antalya', district: 'Alanya', email: '', customerGroupCode: 'G1',
   }
   const client = { async query() { throw new Error('Validation must run before database access') } }
   const run = (body) => createMobileCustomer(client, { ip: '127.0.0.1' }, context, body, 'MOB-12345678-1234-1234-1234-123456789abc')
@@ -135,6 +142,7 @@ test('allows phone, mobile phone and address to be blank', async () => {
       if (sql.includes('pg_advisory_xact_lock')) return { rowCount: 1, rows: [] }
       if (sql.includes('SELECT 1') && sql.includes('FROM customer_cards')) return { rowCount: 0, rows: [] }
       if (sql.includes('SELECT name FROM customer_types')) return { rowCount: 1, rows: [{ name: 'Perakende' }] }
+      if (sql.includes('SELECT code FROM customer_groups')) return { rowCount: 1, rows: [{ code: 'G1' }] }
       if (sql.includes('INSERT INTO customer_cards')) return { rowCount: 1, rows: [{ code: 'MOB-optional' }] }
       if (sql.includes('INSERT INTO sales_rep_customers')) return { rowCount: 1, rows: [{}] }
       if (sql.includes('INSERT INTO audit_logs')) return { rowCount: 1, rows: [{}] }
@@ -148,6 +156,7 @@ test('allows phone, mobile phone and address to be blank', async () => {
     taxOffice: 'Test', address: '', location: '',
     locationLatitude: 41, locationLongitude: 29, locationAccuracyM: 10,
     locationCapturedAt: '2026-10-30T12:00:00.000Z', routeDay: 'Cuma',
+    province: 'Antalya', district: 'Alanya', email: '', customerGroupCode: 'G1',
   }
   const result = await createMobileCustomer(
     client,

@@ -12,6 +12,7 @@ import com.vdgida.vdesgo.sales.data.WorkdaySession
 import com.vdgida.vdesgo.sales.data.LocationReading
 import com.vdgida.vdesgo.sales.data.CustomerCreateRequest
 import com.vdgida.vdesgo.sales.data.CustomerTypeOption
+import com.vdgida.vdesgo.sales.data.CustomerGroupOption
 import com.vdgida.vdesgo.sales.data.CreditLimitCheck
 import com.vdgida.vdesgo.sales.data.CreditLimitRules
 import com.vdgida.vdesgo.sales.data.HotSaleStockRules
@@ -84,6 +85,7 @@ data class MobileUiState(
     val search: String = "",
     val customers: List<CustomerSummary> = emptyList(),
     val customerTypes: List<CustomerTypeOption> = emptyList(),
+    val customerGroups: List<CustomerGroupOption> = emptyList(),
     val customerTypesLoading: Boolean = false,
     val customerCreating: Boolean = false,
     val route: List<CustomerSummary> = emptyList(),
@@ -662,9 +664,11 @@ class AppViewModel @Inject constructor(
             mutableState.update { it.copy(customerTypesLoading = true, error = null) }
             try {
                 val types = repository.customerTypes()
+                val groups = repository.customerGroups()
                 mutableState.update {
                     it.copy(
                         customerTypes = types,
+                        customerGroups = groups,
                         customerTypesLoading = false,
                         error = if (types.isEmpty()) "Sistemde tanımlı müşteri türü bulunamadı." else null,
                     )

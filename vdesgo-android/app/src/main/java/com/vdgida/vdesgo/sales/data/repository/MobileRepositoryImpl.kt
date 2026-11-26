@@ -13,6 +13,7 @@ import com.vdgida.vdesgo.sales.data.CollectionSubmitRequest
 import com.vdgida.vdesgo.sales.data.CustomerCreateRequest
 import com.vdgida.vdesgo.sales.data.CustomerIdentityRules
 import com.vdgida.vdesgo.sales.data.CustomerTypeOption
+import com.vdgida.vdesgo.sales.data.CustomerGroupOption
 import com.vdgida.vdesgo.sales.data.DeviceLoginRequest
 import com.vdgida.vdesgo.sales.data.OperationRequest
 import com.vdgida.vdesgo.sales.data.OperationResult
@@ -551,6 +552,19 @@ class MobileRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun customerGroups(): List<CustomerGroupOption> = withContext(Dispatchers.IO) {
+        val trace = connectivity.newTrace("customer-groups")
+        try {
+            val response = api.customerGroups(trace)
+            if (!response.isSuccessful) throw apiException(response)
+            response.body()?.groups ?: throw unreadableResponse(trace, null)
+        } catch (error: IOException) {
+            throw requestFailure(trace, error)
+        } catch (error: SerializationException) {
+            throw unreadableResponse(trace, error)
+        }
+    }
+
     override suspend fun customerTaxNumberExists(taxNo: String): Result<Boolean> = withContext(Dispatchers.IO) {
         val trace = connectivity.newTrace("customer-tax-number-check")
         try {
@@ -618,6 +632,10 @@ class MobileRepositoryImpl @Inject constructor(
                 put("tckn", queuedRequest.tckn)
                 put("taxOffice", queuedRequest.taxOffice)
                 put("address", queuedRequest.address)
+                put("province", queuedRequest.province)
+                put("district", queuedRequest.district)
+                put("email", queuedRequest.email)
+                put("customerGroupCode", queuedRequest.customerGroupCode)
                 put("location", queuedRequest.location)
                 put("locationLatitude", queuedRequest.locationLatitude)
                 put("locationLongitude", queuedRequest.locationLongitude)

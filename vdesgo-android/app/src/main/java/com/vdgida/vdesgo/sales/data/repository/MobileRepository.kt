@@ -5,6 +5,7 @@ import com.vdgida.vdesgo.sales.data.OperationUiState
 import com.vdgida.vdesgo.sales.data.OutsideRouteAssignment
 import com.vdgida.vdesgo.sales.data.CustomerCreateRequest
 import com.vdgida.vdesgo.sales.data.CustomerTypeOption
+import com.vdgida.vdesgo.sales.data.CustomerGroupOption
 import com.vdgida.vdesgo.sales.data.WorkdaySession
 import com.vdgida.vdesgo.sales.data.LocationReading
 import kotlinx.serialization.json.JsonObject
@@ -145,6 +146,7 @@ interface MobileRepository {
     suspend fun refreshDailyData(): Result<Boolean>
     suspend fun customers(): List<CustomerSummary>
     suspend fun customerTypes(): List<CustomerTypeOption>
+    suspend fun customerGroups(): List<CustomerGroupOption>
     suspend fun customerTaxNumberExists(taxNo: String): Result<Boolean>
     suspend fun createCustomer(request: CustomerCreateRequest): Result<Unit>
     suspend fun customer(code: String): CustomerSummary?
