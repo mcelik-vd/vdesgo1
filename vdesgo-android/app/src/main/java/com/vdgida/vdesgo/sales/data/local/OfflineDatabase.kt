@@ -417,8 +417,11 @@ interface OfflineDao {
     @Query("SELECT * FROM outbox_operations WHERE type IN ('order.submit', 'sale.submit', 'collection.submit') ORDER BY clientCreatedAt DESC")
     suspend fun documentOperations(): List<OutboxOperationEntity>
 
-    @Query("SELECT * FROM outbox_operations WHERE type = 'customer.create' ORDER BY clientCreatedAt DESC LIMIT 50")
+    @Query("SELECT * FROM outbox_operations WHERE type = 'customer.create' AND state != 'dismissed' ORDER BY clientCreatedAt DESC LIMIT 50")
     suspend fun customerCreationOperations(): List<OutboxOperationEntity>
+
+    @Query("UPDATE outbox_operations SET state = 'dismissed', lastError = lastError WHERE operationId = :id AND type = 'customer.create'")
+    suspend fun dismissCustomerCreation(id: String): Int
 
     @Query("DELETE FROM outbox_operations WHERE operationId = :id")
     suspend fun deleteOutboxOperation(id: String): Int

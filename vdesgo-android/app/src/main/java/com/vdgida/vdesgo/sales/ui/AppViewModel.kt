@@ -724,6 +724,17 @@ class AppViewModel @Inject constructor(
         }
     }
 
+    fun dismissCustomerCreation(operationId: String) {
+        viewModelScope.launch {
+            val result = repository.dismissCustomerCreation(operationId)
+            if (result.isFailure) {
+                mutableState.update { it.copy(error = result.exceptionOrNull()?.message) }
+            } else {
+                refreshData()
+            }
+        }
+    }
+
     suspend fun checkCustomerTaxNumber(taxNo: String): Result<Boolean> =
         repository.customerTaxNumberExists(taxNo)
 

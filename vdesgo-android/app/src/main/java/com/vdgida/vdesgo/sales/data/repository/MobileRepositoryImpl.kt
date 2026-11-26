@@ -1831,6 +1831,23 @@ class MobileRepositoryImpl @Inject constructor(
         createCustomer(request)
     }
 
+    override suspend fun dismissCustomerCreation(operationId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val operation = dao.outboxOperation(operationId)
+                ?: return@withContext Result.failure(IOException("Yeni müşteri kaydı bulunamadı."))
+            if (operation.type != "customer.create"
+                || operation.state !in setOf("pending", "retry", "rejected", "conflict")) {
+                return@withContext Result.failure(IOException("Bu müşteri kaydı kapatılamaz."))
+            }
+            if (dao.dismissCustomerCreation(operationId) == 0) {
+                return@withContext Result.failure(IOException("Müşteri uyarısı kapatılamadı."))
+            }
+            Result.success(Unit)
+        } catch (error: IOException) {
+            Result.failure(error)
+        }
+    }
+
     override suspend fun deleteDocument(operationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             var operation = dao.outboxOperation(operationId)

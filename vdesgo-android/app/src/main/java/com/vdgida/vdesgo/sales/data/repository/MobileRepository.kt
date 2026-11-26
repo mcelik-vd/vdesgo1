@@ -196,6 +196,7 @@ interface MobileRepository {
     suspend fun deleteDocument(operationId: String): Result<Unit>
     suspend fun deleteCustomerCreation(operationId: String): Result<Unit>
     suspend fun editCustomerCreation(operationId: String, request: CustomerCreateRequest): Result<Unit>
+    suspend fun dismissCustomerCreation(operationId: String): Result<Unit>
     suspend fun createSaleCorrection(operationId: String): SaleCorrectionDraft?
     suspend fun replaceSalesInvoice(
         operationId: String,

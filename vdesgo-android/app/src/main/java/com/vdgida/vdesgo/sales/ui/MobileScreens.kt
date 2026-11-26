@@ -983,6 +983,14 @@ private fun CustomerListContent(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                TextButton(onClick = { viewModel.dismissCustomerCreation(operation.id) }) {
+                                    Text("Kapat", color = Color(0xFF7A1C1C))
+                                }
+                            }
                         }
                     }
                 },
