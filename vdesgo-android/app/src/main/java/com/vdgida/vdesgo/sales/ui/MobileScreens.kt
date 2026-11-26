@@ -110,6 +110,7 @@ import com.vdgida.vdesgo.sales.R
 import com.vdgida.vdesgo.sales.data.OperationUiState
 import com.vdgida.vdesgo.sales.data.CreditLimitRules
 import com.vdgida.vdesgo.sales.data.CustomerIdentityRules
+import com.vdgida.vdesgo.sales.data.CustomerModificationRules
 import com.vdgida.vdesgo.sales.data.HotSaleStockCheck
 import com.vdgida.vdesgo.sales.data.HotSaleStockRules
 import com.vdgida.vdesgo.sales.data.CustomerCreateRequest
@@ -930,11 +931,7 @@ private fun CustomerListContent(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         )
         customerSyncIssues.forEach { operation ->
-            val canModify = operation.status in setOf(
-                OperationUiState.PENDING,
-                OperationUiState.REJECTED,
-                OperationUiState.CONFLICT,
-            )
+            val canModify = CustomerModificationRules.canModify(operation.status)
             SwipeToDeleteDocument(
                 canDelete = canModify,
                 canEdit = canModify,

@@ -120,6 +120,11 @@ object CustomerIdentityRules {
         missingFieldsMessage(taxOffice, taxNo, tckn) == null
 }
 
+object CustomerModificationRules {
+    fun canModify(status: OperationUiState): Boolean =
+        status in setOf(OperationUiState.PENDING, OperationUiState.REJECTED, OperationUiState.CONFLICT)
+}
+
 @Serializable
 data class CustomerCreateRequest(
     val customerCode: String = "",

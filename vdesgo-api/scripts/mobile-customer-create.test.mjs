@@ -127,6 +127,36 @@ test('rejects missing or malformed customer identity fields before database writ
   assert.equal((await run({ ...base, customerTypeCode: 'RETAIL', routeDay: '' })).code, 'ROUTE_DAY_REQUIRED')
 })
 
+test('allows phone, mobile phone and address to be blank', async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes('pg_advisory_xact_lock')) return { rowCount: 1, rows: [] }
+      if (sql.includes('SELECT 1') && sql.includes('FROM customer_cards')) return { rowCount: 0, rows: [] }
+      if (sql.includes('SELECT name FROM customer_types')) return { rowCount: 1, rows: [{ name: 'Perakende' }] }
+      if (sql.includes('INSERT INTO customer_cards')) return { rowCount: 1, rows: [{ code: 'MOB-optional' }] }
+      if (sql.includes('INSERT INTO sales_rep_customers')) return { rowCount: 1, rows: [{}] }
+      if (sql.includes('INSERT INTO audit_logs')) return { rowCount: 1, rows: [{}] }
+      throw new Error(`Unexpected query: ${sql}`)
+    },
+  }
+  const context = { tenantCode: 'test', salesRepresentativeId: 'rep', salesRepresentativeName: 'Test', username: 'test', deviceId: 'device' }
+  const body = {
+    ownerName: 'Test', businessTitle: 'Test', customerTypeCode: 'RETAIL',
+    phone: '', mobilePhone: '', taxNo: '1234567890', tckn: '',
+    taxOffice: 'Test', address: '', location: '',
+    locationLatitude: 41, locationLongitude: 29, locationAccuracyM: 10,
+    locationCapturedAt: '2026-10-30T12:00:00.000Z', routeDay: 'Cuma',
+  }
+  const result = await createMobileCustomer(
+    client,
+    { ip: '127.0.0.1' },
+    context,
+    body,
+    'MOB-12345678-1234-1234-1234-123456789abc',
+  )
+  assert.equal(result.status, 'accepted')
+})
+
 test('classifies live database failures instead of hiding all failures as retryable', () => {
   assert.deepEqual(
     classifyMobileSyncException({ code: '42703', column: 'tckn' }),

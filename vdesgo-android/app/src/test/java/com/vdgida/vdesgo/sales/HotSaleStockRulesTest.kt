@@ -4,6 +4,8 @@ import com.vdgida.vdesgo.sales.data.CreditLimitCheck
 import com.vdgida.vdesgo.sales.data.CreditLimitRules
 import com.vdgida.vdesgo.sales.data.CustomerCreateRequest
 import com.vdgida.vdesgo.sales.data.CustomerIdentityRules
+import com.vdgida.vdesgo.sales.data.CustomerModificationRules
+import com.vdgida.vdesgo.sales.data.OperationUiState
 import com.vdgida.vdesgo.sales.data.HotSaleStockCheck
 import com.vdgida.vdesgo.sales.data.HotSaleStockRules
 import com.vdgida.vdesgo.sales.data.QuoteResponse
@@ -293,6 +295,16 @@ class CreditLimitRulesTest {
         )
         assertTrue(CustomerIdentityRules.isValid("Test Vergi Dairesi", "1234567890", ""))
         assertTrue(CustomerIdentityRules.isValid("Test Vergi Dairesi", "", "11111111111"))
+    }
+
+    @Test
+    fun customerModificationOnlyAllowsUnacceptedStates() {
+        assertTrue(CustomerModificationRules.canModify(OperationUiState.PENDING))
+        assertTrue(CustomerModificationRules.canModify(OperationUiState.REJECTED))
+        assertTrue(CustomerModificationRules.canModify(OperationUiState.CONFLICT))
+        assertFalse(CustomerModificationRules.canModify(OperationUiState.RETRY))
+        assertFalse(CustomerModificationRules.canModify(OperationUiState.SENDING))
+        assertFalse(CustomerModificationRules.canModify(OperationUiState.ACCEPTED))
     }
 
     @Test
