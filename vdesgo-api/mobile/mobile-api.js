@@ -504,6 +504,12 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
       return { status: 'rejected', code: 'VALIDATION_ERROR' }
     }
   }
+  if (!String(body.ownerName ?? '').trim()) {
+    return { status: 'rejected', code: 'OWNER_NAME_REQUIRED', result: { message: 'Sahibi adı soyadı zorunludur.' } }
+  }
+  if (!String(body.businessTitle ?? '').trim()) {
+    return { status: 'rejected', code: 'BUSINESS_TITLE_REQUIRED', result: { message: 'İşyeri ünvanı zorunludur.' } }
+  }
   if (!String(body.taxOffice ?? '').trim()) {
     return { status: 'rejected', code: 'TAX_OFFICE_REQUIRED', result: { message: 'Vergi dairesi zorunludur.' } }
   }
@@ -513,6 +519,9 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
 
   const taxNo = (body.taxNo ?? '').trim()
   const tckn = (body.tckn ?? '').trim()
+  const phone = String(body.phone ?? '').trim() || '0'
+  const mobilePhone = String(body.mobilePhone ?? '').trim() || '0'
+  const address = String(body.address ?? '').trim() || '0'
   const normalizedTaxNo = normalizeTaxNumber(taxNo)
   if (!normalizedTaxNo && !tckn) {
     return { status: 'rejected', code: 'TAX_IDENTITY_REQUIRED', result: { message: 'VKN veya TCKN girilmelidir.' } }
@@ -582,11 +591,11 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
       body.businessTitle.trim(),
       customerTypeName,
       context.salesRepresentativeName,
-      body.phone.trim(),
-      body.mobilePhone.trim(),
+      phone,
+      mobilePhone,
       taxNo,
       body.taxOffice.trim(),
-      body.address.trim(),
+      address,
       body.location.trim(),
       locationLatitude,
       locationLongitude,

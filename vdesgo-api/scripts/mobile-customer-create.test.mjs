@@ -125,6 +125,8 @@ test('rejects missing or malformed customer identity fields before database writ
   assert.equal((await run({ ...base, taxNo: '123' })).code, 'INVALID_VKN')
   assert.equal((await run({ ...base, taxNo: '', tckn: '123' })).code, 'INVALID_TCKN')
   assert.equal((await run({ ...base, customerTypeCode: 'RETAIL', routeDay: '' })).code, 'ROUTE_DAY_REQUIRED')
+  assert.equal((await run({ ...base, ownerName: '' })).code, 'OWNER_NAME_REQUIRED')
+  assert.equal((await run({ ...base, businessTitle: '' })).code, 'BUSINESS_TITLE_REQUIRED')
 })
 
 test('allows phone, mobile phone and address to be blank', async () => {

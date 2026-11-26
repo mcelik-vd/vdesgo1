@@ -308,6 +308,16 @@ class CreditLimitRulesTest {
     }
 
     @Test
+    fun customerOptionalFieldsDefaultToZeroAndNamesRemainRequired() {
+        assertEquals("0", CustomerIdentityRules.normalizeOptionalText(""))
+        assertEquals("0", CustomerIdentityRules.normalizeOptionalText("   "))
+        assertEquals("05551234567", CustomerIdentityRules.normalizeOptionalText("05551234567"))
+        assertEquals("Sahibi adı soyadı zorunludur.", CustomerIdentityRules.missingRequiredNameMessage("", "Ünvan"))
+        assertEquals("İşyeri ünvanı zorunludur.", CustomerIdentityRules.missingRequiredNameMessage("Ahmet", ""))
+        assertEquals(null, CustomerIdentityRules.missingRequiredNameMessage("Ahmet", "Ünvan"))
+    }
+
+    @Test
     fun formatsServerCreditRejectionDetails() {
         val message = creditLimitRejectionMessage(
             """{"customerCode":"C1","balance":900,"openOrderAmount":50,"creditLimit":1000,"projectedBalance":1100,"excessAmount":100,"message":"Limit aşıldı"}""",

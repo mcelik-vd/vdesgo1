@@ -961,6 +961,8 @@ private fun CustomerListContent(
                                 "INVALID_CREDIT_LIMIT" -> "Maksimum borç bakiyesi sunucu tarafından geçersiz bulundu."
                                 "TAX_OFFICE_REQUIRED" -> "Vergi dairesi zorunludur."
                                 "TAX_IDENTITY_REQUIRED" -> "VKN veya TCKN girilmelidir."
+                                "OWNER_NAME_REQUIRED" -> "Sahibi adı soyadı zorunludur."
+                                "BUSINESS_TITLE_REQUIRED" -> "İşyeri ünvanı zorunludur."
                                 "INVALID_VKN" -> "VKN 10 haneli rakamlardan oluşmalıdır."
                                 "INVALID_TCKN" -> "TCKN 11 haneli rakamlardan oluşmalıdır."
                                 "CUSTOMER_TYPE_REQUIRED" -> "Müşteri tipi zorunludur."
@@ -1093,6 +1095,8 @@ private fun NewCustomerDialog(
     val taxKey = "${taxOffice.trim()}|${taxNo.trim()}|${tckn.trim()}"
     val taxFieldsMessage = CustomerIdentityRules.missingFieldsMessage(taxOffice, taxNo, tckn)
     val taxFieldsValid = taxFieldsMessage == null
+    val requiredNameMessage = CustomerIdentityRules.missingRequiredNameMessage(ownerName, businessTitle)
+    val requiredNameValid = requiredNameMessage == null
 
     LaunchedEffect(taxKey, state.serverReachable, taxCheckAttempt) {
         checkedTaxKey = null
@@ -1193,17 +1197,20 @@ private fun NewCustomerDialog(
                         OutlinedTextField(
                             value = businessTitle,
                             onValueChange = { businessTitle = it },
-                            label = { Text("İşyeri Ünvanı") },
+                            label = { Text("İşyeri Ünvanı *") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = ownerName,
                             onValueChange = { ownerName = it },
-                            label = { Text("Sahibi Adı Soyadı") },
+                            label = { Text("Sahibi Adı Soyadı *") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        if (requiredNameMessage != null) {
+                            Text(requiredNameMessage, color = MaterialTheme.colorScheme.error)
+                        }
                         OutlinedTextField(
                             value = phone,
                             onValueChange = { phone = it },
@@ -1223,7 +1230,7 @@ private fun NewCustomerDialog(
                         OutlinedTextField(
                             value = address,
                             onValueChange = { address = it },
-                            label = { Text("Adres") },
+                            label = { Text("Adres (boşsa 0 kaydedilir)") },
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedButton(
@@ -1341,12 +1348,12 @@ private fun NewCustomerDialog(
                                 ownerName = ownerName.trim(),
                                 businessTitle = businessTitle.trim(),
                                 customerTypeCode = customerTypeCode,
-                                phone = phone.trim(),
-                                mobilePhone = mobilePhone.trim(),
+                                phone = CustomerIdentityRules.normalizeOptionalText(phone),
+                                mobilePhone = CustomerIdentityRules.normalizeOptionalText(mobilePhone),
                                 taxNo = taxNo.trim(),
                                 tckn = tckn.trim(),
                                 taxOffice = taxOffice.trim(),
-                                address = address.trim(),
+                                address = CustomerIdentityRules.normalizeOptionalText(address),
                                 location = "${reading.latitude},${reading.longitude}",
                                 locationLatitude = reading.latitude,
                                 locationLongitude = reading.longitude,
@@ -1361,7 +1368,7 @@ private fun NewCustomerDialog(
                                 viewModel.createCustomer(request, onCreated = onDismiss)
                             }
                         },
-                        enabled = canContinue && customerTypeCode.isNotBlank() && routeDay.isNotBlank() &&
+                        enabled = canContinue && requiredNameValid && customerTypeCode.isNotBlank() && routeDay.isNotBlank() &&
                             creditLimitInput.isSuccess &&
                             capturedLocation?.accuracyM?.let { it in 0.0..50.0 } == true &&
                             !state.customerCreating,
@@ -3643,8 +3650,8 @@ private fun SwipeToDeleteDocument(
         positionalThreshold = { distance -> distance * 0.5f },
         confirmValueChange = { value ->
             when (value) {
-                SwipeToDismissBoxValue.EndToStart -> if (canDelete) onDelete()
-                SwipeToDismissBoxValue.StartToEnd -> if (canEdit) onEdit()
+                SwipeToDismissBoxValue.StartToEnd -> if (canDelete) onDelete()
+                SwipeToDismissBoxValue.EndToStart -> if (canEdit) onEdit()
                 SwipeToDismissBoxValue.Settled -> Unit
             }
             false
@@ -3652,11 +3659,11 @@ private fun SwipeToDeleteDocument(
     )
     SwipeToDismissBox(
         state = dismissState,
-        enableDismissFromStartToEnd = canEdit,
-        enableDismissFromEndToStart = canDelete,
+        enableDismissFromStartToEnd = canDelete,
+        enableDismissFromEndToStart = canEdit,
         gesturesEnabled = canEdit || canDelete,
         backgroundContent = {
-            val editing = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val editing = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
             Box(
                 Modifier.fillMaxSize()
                     .background(
@@ -3664,7 +3671,7 @@ private fun SwipeToDeleteDocument(
                         RoundedCornerShape(16.dp),
                     )
                     .padding(horizontal = 20.dp),
-                contentAlignment = if (editing) Alignment.CenterStart else Alignment.CenterEnd,
+                contentAlignment = if (editing) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (editing) {

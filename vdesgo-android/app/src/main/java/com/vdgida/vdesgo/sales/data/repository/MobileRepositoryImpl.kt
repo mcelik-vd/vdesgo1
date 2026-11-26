@@ -576,6 +576,9 @@ class MobileRepositoryImpl @Inject constructor(
             if (request.customerTypeCode.isBlank()) {
                 return@withContext Result.failure(IOException("Müşteri tipi seçilmelidir."))
             }
+            CustomerIdentityRules.missingRequiredNameMessage(request.ownerName, request.businessTitle)?.let {
+                return@withContext Result.failure(IOException(it))
+            }
             if (routeDay.isBlank()) {
                 return@withContext Result.failure(IOException("Rut günü seçilmelidir."))
             }
@@ -587,6 +590,9 @@ class MobileRepositoryImpl @Inject constructor(
             val queuedRequest = request.copy(
                 customerCode = request.customerCode.ifBlank { "MOB-${UUID.randomUUID()}" },
                 routeDay = routeDay,
+                phone = CustomerIdentityRules.normalizeOptionalText(request.phone),
+                mobilePhone = CustomerIdentityRules.normalizeOptionalText(request.mobilePhone),
+                address = CustomerIdentityRules.normalizeOptionalText(request.address),
             )
             if (connectivity.reachability.value == true) {
                 for (number in listOf(queuedRequest.taxNo, queuedRequest.tckn).filter(String::isNotBlank).distinct()) {

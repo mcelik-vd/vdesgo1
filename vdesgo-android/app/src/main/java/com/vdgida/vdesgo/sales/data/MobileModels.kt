@@ -118,6 +118,15 @@ object CustomerIdentityRules {
 
     fun isValid(taxOffice: String, taxNo: String, tckn: String): Boolean =
         missingFieldsMessage(taxOffice, taxNo, tckn) == null
+
+    fun missingRequiredNameMessage(ownerName: String, businessTitle: String): String? {
+        if (ownerName.trim().isBlank()) return "Sahibi adı soyadı zorunludur."
+        if (businessTitle.trim().isBlank()) return "İşyeri ünvanı zorunludur."
+        return null
+    }
+
+    fun normalizeOptionalText(value: String): String =
+        value.trim().ifBlank { "0" }
 }
 
 object CustomerModificationRules {
