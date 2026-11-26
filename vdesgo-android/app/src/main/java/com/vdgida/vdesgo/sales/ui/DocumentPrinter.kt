@@ -111,6 +111,26 @@ object DocumentPrinter {
                                 unitCode = line["unitCode"]?.jsonPrimitive?.contentOrNull
                                     ?: fallback?.unitCode
                                     ?: "",
+                                discountPercent = line["appliedManualDiscountPercent"]?.jsonPrimitive?.doubleOrNull
+                                    ?.let { percent ->
+                                        val percentText = if (percent % 1.0 == 0.0) percent.toInt().toString()
+                                        else String.format(java.util.Locale.US, "%.2f", percent).trimEnd('0').trimEnd('.')
+                                        "$percentText%"
+                                    }
+                                    ?: line["discount1Percent"]?.jsonPrimitive?.doubleOrNull
+                                        ?.let { percent ->
+                                            val percentText = if (percent % 1.0 == 0.0) percent.toInt().toString()
+                                            else String.format(java.util.Locale.US, "%.2f", percent).trimEnd('0').trimEnd('.')
+                                            "$percentText%"
+                                        }
+                                    ?: fallback?.manualDiscountPercent?.takeIf { it > 0.0 }
+                                        ?.let { percent -> "${percent.toInt()}%" }
+                                    ?: "",
+                                discountAmount = line["manualDiscountAmount"]?.jsonPrimitive?.doubleOrNull
+                                    ?.let(::money)
+                                    ?: line["discountAmount"]?.jsonPrimitive?.doubleOrNull
+                                        ?.let(::money)
+                                    ?: "",
                                 unitPrice = line["effectiveUnitPrice"]?.jsonPrimitive?.doubleOrNull
                                     ?.let(::money)
                                     ?: line["baseUnitPrice"]?.jsonPrimitive?.doubleOrNull

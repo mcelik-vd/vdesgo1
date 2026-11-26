@@ -134,7 +134,9 @@ class BluetoothPrinter(private val context: Context) {
                 val qty = "${formatQuantity(lineItem.quantity)} ${lineItem.unitCode}"
                 val price = lineItem.unitPrice.ifBlank { "-" }
                 val amount = lineItem.lineTotal
-                line(padLeftRight("$qty x $price", amount, 48))
+                val discount = lineItem.discountPercent.takeIf(String::isNotBlank)?.let { "isk $it" } ?: "isk -"
+                line(padLeftRight("$qty x $price", discount, 48))
+                line(padLeftRight("TUTAR", amount, 48))
             }
             line("--------------------------------")
             if (receipt.subtotal.isNotBlank()) line(padLeftRight("ARA TOPLAM", receipt.subtotal, 48))

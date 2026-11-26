@@ -24,5 +24,7 @@ data class ThermalReceiptLine(
     val quantity: Double,
     val unitCode: String,
     val unitPrice: String = "",
+    val discountPercent: String = "",
+    val discountAmount: String = "",
     val lineTotal: String,
 )
