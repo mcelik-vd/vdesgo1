@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import com.vdgida.vdesgo.sales.printer.BluetoothPrinter
 import com.vdgida.vdesgo.sales.printer.ThermalReceipt
@@ -42,10 +43,14 @@ object DocumentPrinter {
         }
         val isSale = operation.type == "sale.submit"
         val total = result?.get("grandTotal")?.jsonPrimitive?.doubleOrNull ?: draft?.netEstimate ?: 0.0
-        val subtotal = result?.get("subtotalAmount")?.jsonPrimitive?.doubleOrNull
-            ?: result?.get("subtotal")?.jsonPrimitive?.doubleOrNull
+        val subtotal = result?.get("subtotal")?.jsonPrimitive?.doubleOrNull
+            ?: result?.get("subtotalAmount")?.jsonPrimitive?.doubleOrNull
+            ?: draft?.lines.orEmpty().sumOf { line ->
+                (line.unitNetPrice ?: 0.0) * line.quantity
+            }.takeIf { it > 0.0 }
         val discountTotal = result?.get("discountAmount")?.jsonPrimitive?.doubleOrNull
             ?: result?.get("discountTotal")?.jsonPrimitive?.doubleOrNull
+            ?: result?.get("totalDiscount")?.jsonPrimitive?.doubleOrNull
             ?: listOfNotNull(
                 result?.get("productDiscountTotal")?.jsonPrimitive?.doubleOrNull,
                 result?.get("customerDiscountTotal")?.jsonPrimitive?.doubleOrNull,
@@ -89,14 +94,49 @@ object DocumentPrinter {
                 customerTaxNo = customer?.taxNo.orEmpty(),
                 customerTckn = customer?.tckn.orEmpty(),
                 representativeName = representativeName,
-                lines = draft?.lines.orEmpty().map { line ->
-                    ThermalReceiptLine(
-                        productName = line.productName,
-                        quantity = line.quantity,
-                        unitCode = line.unitCode,
-                        unitPrice = line.unitNetPrice?.let(::money).orEmpty(),
-                        lineTotal = money(line.quantity * (line.unitNetPrice ?: 0.0)),
-                    )
+                lines = run {
+                    val serverLines = result?.get("lines")?.jsonArray.orEmpty()
+                    val draftLines = draft?.lines.orEmpty()
+                    if (serverLines.isNotEmpty()) {
+                        serverLines.mapIndexed { index, element ->
+                            val line = element.jsonObject
+                            val fallback = draftLines.getOrNull(index)
+                            ThermalReceiptLine(
+                                productName = line["productName"]?.jsonPrimitive?.contentOrNull
+                                    ?: fallback?.productName
+                                    ?: "",
+                                quantity = line["quantity"]?.jsonPrimitive?.doubleOrNull
+                                    ?: fallback?.quantity
+                                    ?: 0.0,
+                                unitCode = line["unitCode"]?.jsonPrimitive?.contentOrNull
+                                    ?: fallback?.unitCode
+                                    ?: "",
+                                unitPrice = line["effectiveUnitPrice"]?.jsonPrimitive?.doubleOrNull
+                                    ?.let(::money)
+                                    ?: line["baseUnitPrice"]?.jsonPrimitive?.doubleOrNull
+                                        ?.let(::money)
+                                    ?: fallback?.unitNetPrice?.let(::money)
+                                    ?: "",
+                                lineTotal = line["grossAmount"]?.jsonPrimitive?.doubleOrNull
+                                    ?.let(::money)
+                                    ?: line["lineTotal"]?.jsonPrimitive?.doubleOrNull
+                                        ?.let(::money)
+                                    ?: fallback?.let {
+                                        money(it.quantity * (it.unitNetPrice ?: 0.0))
+                                    }.orEmpty(),
+                            )
+                        }
+                    } else {
+                        draftLines.map { line ->
+                            ThermalReceiptLine(
+                                productName = line.productName,
+                                quantity = line.quantity,
+                                unitCode = line.unitCode,
+                                unitPrice = line.unitNetPrice?.let(::money).orEmpty(),
+                                lineTotal = money(line.quantity * (line.unitNetPrice ?: 0.0)),
+                            )
+                        }
+                    }
                 },
                 subtotal = subtotal?.let(::money).orEmpty(),
                 discountTotal = discountTotal?.let(::money).orEmpty(),
