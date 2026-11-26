@@ -3641,6 +3641,9 @@ private fun SalesContent(
                             operation = operation,
                             draft = operation.draftId?.let { id -> state.drafts.firstOrNull { it.id == id } },
                             representativeName = state.session?.representativeName.orEmpty(),
+                            customer = operation.draftId?.let { id ->
+                                state.drafts.firstOrNull { it.id == id }?.customerCode
+                            }?.let { code -> state.customers.firstOrNull { it.code == code } },
                             number = number,
                             onQueued = {
                                 if (number.isNotBlank()) {
@@ -3677,6 +3680,9 @@ private fun SalesContent(
                         operation = operation,
                         draft = operation.draftId?.let { id -> state.drafts.firstOrNull { it.id == id } },
                         representativeName = state.session?.representativeName.orEmpty(),
+                        customer = operation.draftId?.let { id ->
+                            state.drafts.firstOrNull { it.id == id }?.customerCode
+                        }?.let { code -> state.customers.firstOrNull { it.code == code } },
                         number = "",
                         onQueued = { viewModel.markDocumentPrinted(operation.id, null) },
                         onError = { message -> printError = message },

@@ -105,7 +105,7 @@ class BluetoothPrinter(private val context: Context) {
         add(0x1B, 0x61, 0x00)
         line(settings.companyAddress())
         line(settings.companyPhone().takeIf(String::isNotBlank)?.let { "Tel: $it" }.orEmpty())
-        line(settings.companyTaxOffice().takeIf(String::isNotBlank)?.let { "VD: $it" }.orEmpty())
+        line(settings.companyTaxOffice().takeIf(String::isNotBlank)?.let { "Vergi Dairesi: $it" }.orEmpty())
         line(settings.companyTaxNo().takeIf(String::isNotBlank)?.let { "VKN: $it" }.orEmpty())
         line(settings.companyTckn().takeIf(String::isNotBlank)?.let { "TCKN: $it" }.orEmpty())
         line("--------------------------------")
@@ -114,17 +114,30 @@ class BluetoothPrinter(private val context: Context) {
         add(0x1B, 0x61, 0x00)
         line("Fatura No: ${receipt.invoiceNumber}")
         line("Tarih: ${receipt.date}")
-        line("Musteri: ${receipt.customerName}")
-        line("Cari Kodu: ${receipt.customerCode}")
         line("Temsilci: ${receipt.representativeName}")
         line("--------------------------------")
+        line("MUSTERI CARI BILGILERI")
+        line("Cari Adi: ${receipt.customerName}")
+        if (receipt.customerTitle.isNotBlank()) line("Isyeri Unvan: ${receipt.customerTitle}")
+        line("Cari Kodu: ${receipt.customerCode}")
+        if (receipt.customerAddress.isNotBlank()) line("Adres: ${receipt.customerAddress}")
+        if (receipt.customerPhone.isNotBlank()) line("Tel: ${receipt.customerPhone}")
+        if (receipt.customerTaxOffice.isNotBlank()) line("Vergi Dairesi: ${receipt.customerTaxOffice}")
+        if (receipt.customerTaxNo.isNotBlank()) line("VKN: ${receipt.customerTaxNo}")
+        if (receipt.customerTckn.isNotBlank()) line("TCKN: ${receipt.customerTckn}")
+        line("--------------------------------")
+        line("URUN        MIKTAR  FIAT      TUTAR")
         receipt.lines.forEach { lineItem ->
             line("${lineItem.productName.take(28)}")
-            val left = "${formatQuantity(lineItem.quantity)} ${lineItem.unitCode}"
-            val right = lineItem.lineTotal
-            line(padLeftRight(left, right, 48))
+            val qty = "${formatQuantity(lineItem.quantity)} ${lineItem.unitCode}"
+            val price = lineItem.unitPrice.ifBlank { "-" }
+            val amount = lineItem.lineTotal
+            line(padLeftRight("$qty x $price", amount, 48))
         }
         line("--------------------------------")
+        if (receipt.subtotal.isNotBlank()) line(padLeftRight("ARA TOPLAM", receipt.subtotal, 48))
+        if (receipt.discountTotal.isNotBlank()) line(padLeftRight("ISKONTO", receipt.discountTotal, 48))
+        if (receipt.vatTotal.isNotBlank()) line(padLeftRight("KDV", receipt.vatTotal, 48))
         line(padLeftRight("GENEL TOPLAM", receipt.total, 48))
         line("")
         add(0x1B, 0x61, 0x01)

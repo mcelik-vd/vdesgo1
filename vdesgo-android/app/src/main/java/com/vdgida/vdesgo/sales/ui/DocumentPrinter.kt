@@ -20,6 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import com.vdgida.vdesgo.sales.printer.BluetoothPrinter
 import com.vdgida.vdesgo.sales.printer.ThermalReceipt
 import com.vdgida.vdesgo.sales.printer.ThermalReceiptLine
+import com.vdgida.vdesgo.sales.data.repository.CustomerSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -31,6 +32,7 @@ object DocumentPrinter {
         operation: OperationSummary,
         draft: DraftSummary?,
         representativeName: String,
+        customer: CustomerSummary?,
         number: String,
         onQueued: () -> Unit,
         onError: (String) -> Unit,
@@ -40,6 +42,20 @@ object DocumentPrinter {
         }
         val isSale = operation.type == "sale.submit"
         val total = result?.get("grandTotal")?.jsonPrimitive?.doubleOrNull ?: draft?.netEstimate ?: 0.0
+        val subtotal = result?.get("subtotalAmount")?.jsonPrimitive?.doubleOrNull
+            ?: result?.get("subtotal")?.jsonPrimitive?.doubleOrNull
+        val discountTotal = result?.get("discountAmount")?.jsonPrimitive?.doubleOrNull
+            ?: result?.get("discountTotal")?.jsonPrimitive?.doubleOrNull
+            ?: listOfNotNull(
+                result?.get("productDiscountTotal")?.jsonPrimitive?.doubleOrNull,
+                result?.get("customerDiscountTotal")?.jsonPrimitive?.doubleOrNull,
+                result?.get("paymentDiscountTotal")?.jsonPrimitive?.doubleOrNull,
+                result?.get("promotionTotal")?.jsonPrimitive?.doubleOrNull,
+                result?.get("promotionDiscountTotal")?.jsonPrimitive?.doubleOrNull,
+            ).takeIf { it.isNotEmpty() }?.sum()
+        val vatTotal = result?.get("taxAmount")?.jsonPrimitive?.doubleOrNull
+            ?: result?.get("taxTotal")?.jsonPrimitive?.doubleOrNull
+            ?: result?.get("vatAmount")?.jsonPrimitive?.doubleOrNull
         val rows = draft?.lines.orEmpty().joinToString("") { line ->
             "<tr${if (isPieceUnit(line.unitCode)) " class=\"piece-unit\"" else ""}><td>${escape(line.productName)}</td><td>${format(line.quantity)} ${escape(line.unitCode)}</td>" +
                 "<td>${line.unitNetPrice?.let(::money).orEmpty()}</td>" +
@@ -66,15 +82,25 @@ object DocumentPrinter {
                 date = operation.createdAt,
                 customerName = draft?.customerName.orEmpty(),
                 customerCode = draft?.customerCode.orEmpty(),
+                customerTitle = customer?.title.orEmpty(),
+                customerAddress = customer?.address.orEmpty(),
+                customerPhone = customer?.phone.orEmpty(),
+                customerTaxOffice = customer?.taxOffice.orEmpty(),
+                customerTaxNo = customer?.taxNo.orEmpty(),
+                customerTckn = customer?.tckn.orEmpty(),
                 representativeName = representativeName,
                 lines = draft?.lines.orEmpty().map { line ->
                     ThermalReceiptLine(
                         productName = line.productName,
                         quantity = line.quantity,
                         unitCode = line.unitCode,
+                        unitPrice = line.unitNetPrice?.let(::money).orEmpty(),
                         lineTotal = money(line.quantity * (line.unitNetPrice ?: 0.0)),
                     )
                 },
+                subtotal = subtotal?.let(::money).orEmpty(),
+                discountTotal = discountTotal?.let(::money).orEmpty(),
+                vatTotal = vatTotal?.let(::money).orEmpty(),
                 total = money(total),
             )
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
