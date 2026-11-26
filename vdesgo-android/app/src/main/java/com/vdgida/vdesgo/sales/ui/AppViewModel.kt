@@ -664,13 +664,19 @@ class AppViewModel @Inject constructor(
             mutableState.update { it.copy(customerTypesLoading = true, error = null) }
             try {
                 val types = repository.customerTypes()
-                val groups = repository.customerGroups()
+                val groups = try {
+                    repository.customerGroups()
+                } catch (_: Throwable) {
+                    emptyList()
+                }
                 mutableState.update {
                     it.copy(
                         customerTypes = types,
                         customerGroups = groups,
                         customerTypesLoading = false,
-                        error = if (types.isEmpty()) "Sistemde tanımlı müşteri türü bulunamadı." else null,
+                        error = if (types.isEmpty()) "Sistemde tanımlı müşteri türü bulunamadı."
+                            else if (groups.isEmpty()) "Canlı sunucudan cari grup listesi alınamadı. API güncellemesini bekleyin."
+                            else null,
                     )
                 }
             } catch (error: IOException) {
