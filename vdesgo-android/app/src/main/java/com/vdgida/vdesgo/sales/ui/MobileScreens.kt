@@ -939,19 +939,21 @@ private fun CustomerListContent(
                 onEdit = { editCustomerOperation = operation },
                 content = {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
+                            .background(
+                                Color(0xFFFFE5E5),
+                                RoundedCornerShape(16.dp),
+                            ),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (operation.status == OperationUiState.REJECTED) {
-                                MaterialTheme.colorScheme.errorContainer
-                            } else {
-                                MaterialTheme.colorScheme.secondaryContainer
-                            },
+                            containerColor = Color(0xFFFFE5E5),
+                            contentColor = Color(0xFF7A1C1C),
                         ),
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 "Yeni müşteri kaydı · ${stringResource(operation.status.labelResource)}",
                                 fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF7A1C1C),
                             )
                             operation.error?.let { error ->
                                 Text(
