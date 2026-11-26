@@ -1,7 +1,15 @@
 package com.vdgida.vdesgo.sales.ui
 
+import android.Manifest
+import android.os.Build
+import android.content.Intent
+import android.provider.Settings
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -122,6 +130,8 @@ import com.vdgida.vdesgo.sales.data.repository.MobileRepository
 import com.vdgida.vdesgo.sales.data.repository.OperationSummary
 import com.vdgida.vdesgo.sales.data.repository.ProductSummary
 import com.vdgida.vdesgo.sales.data.repository.UnitPriceSummary
+import com.vdgida.vdesgo.sales.printer.BluetoothPrinter
+import com.vdgida.vdesgo.sales.printer.BluetoothPrinterSettingsStore
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -3910,6 +3920,38 @@ private fun MapContent(state: MobileUiState) {
 @Composable
 private fun MoreContent(state: MobileUiState, viewModel: AppViewModel, onWorkday: () -> Unit) {
     val session = state.session
+    val context = LocalContext.current
+    val printerStore = remember(context) { BluetoothPrinterSettingsStore(context) }
+    val bluetoothPrinter = remember(context) { BluetoothPrinter(context) }
+    var printerDialogVisible by rememberSaveable { mutableStateOf(false) }
+    var printerAddress by remember { mutableStateOf(printerStore.printerAddress()) }
+    var printerName by remember { mutableStateOf(printerStore.printerName()) }
+    var companyTitle by remember { mutableStateOf(printerStore.companyTitle()) }
+    var companyAddress by remember { mutableStateOf(printerStore.companyAddress()) }
+    var companyPhone by remember { mutableStateOf(printerStore.companyPhone()) }
+    var companyTaxOffice by remember { mutableStateOf(printerStore.companyTaxOffice()) }
+    var companyTaxNo by remember { mutableStateOf(printerStore.companyTaxNo()) }
+    var companyTckn by remember { mutableStateOf(printerStore.companyTckn()) }
+    var pairedPrinterMenuExpanded by remember { mutableStateOf(false) }
+    var pairedPrinters by remember { mutableStateOf(bluetoothPrinter.pairedDevices()) }
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        pairedPrinters = if (granted) bluetoothPrinter.pairedDevices() else emptyList()
+    }
+
+    fun openPrinterSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            pairedPrinters = bluetoothPrinter.pairedDevices()
+        }
+        printerDialogVisible = true
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -3930,6 +3972,23 @@ private fun MoreContent(state: MobileUiState, viewModel: AppViewModel, onWorkday
             }
         }
         item {
+            Card(shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Bluetooth Yazıcı", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    InfoLine("Yazıcı", printerName.ifBlank { "Seçilmedi" })
+                    InfoLine("Adres", printerAddress.ifBlank { "—" })
+                    InfoLine("Kağıt", "80 mm")
+                    InfoLine("Mod", "ESC/POS")
+                    OutlinedButton(
+                        onClick = ::openPrinterSettings,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Yazıcı Ayarları")
+                    }
+                }
+            }
+        }
+        item {
             Button(onClick = viewModel::refresh, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Sync, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -3946,6 +4005,121 @@ private fun MoreContent(state: MobileUiState, viewModel: AppViewModel, onWorkday
                 Text(stringResource(R.string.logout))
             }
         }
+    }
+    if (printerDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { printerDialogVisible = false },
+            title = { Text("Bluetooth Yazıcı Ayarları") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Android Bluetooth Ayarlarını Aç") }
+
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { pairedPrinterMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(printerName.ifBlank { "Eşleşmiş yazıcı seçin" })
+                        }
+                        DropdownMenu(
+                            expanded = pairedPrinterMenuExpanded,
+                            onDismissRequest = { pairedPrinterMenuExpanded = false },
+                        ) {
+                            pairedPrinters.forEach { (address, name) ->
+                                DropdownMenuItem(
+                                    text = { Text(name.ifBlank { address }) },
+                                    onClick = {
+                                        printerAddress = address
+                                        printerName = name.ifBlank { address }
+                                        pairedPrinterMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    if (pairedPrinters.isEmpty()) {
+                        Text(
+                            "Eşleşmiş ZYWELL/ZM04 cihazı bulunamadı. Android Bluetooth ayarlarından yazıcıyı eşleyip tekrar açın.",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = companyTitle,
+                        onValueChange = { companyTitle = it },
+                        label = { Text("Firma Ünvanı") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = companyAddress,
+                        onValueChange = { companyAddress = it },
+                        label = { Text("Firma Adresi") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = companyPhone,
+                        onValueChange = { companyPhone = it },
+                        label = { Text("Firma Telefonu") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = companyTaxOffice,
+                        onValueChange = { companyTaxOffice = it },
+                        label = { Text("Vergi Dairesi") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = companyTaxNo,
+                        onValueChange = { value -> if (value.length <= 10) companyTaxNo = value.filter(Char::isDigit) },
+                        label = { Text("VKN") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = companyTckn,
+                        onValueChange = { value -> if (value.length <= 11) companyTckn = value.filter(Char::isDigit) },
+                        label = { Text("TCKN") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = printerAddress.isNotBlank(),
+                    onClick = {
+                        printerStore.savePrinter(printerAddress, printerName)
+                        printerStore.saveCompany(
+                            companyTitle,
+                            companyAddress,
+                            companyPhone,
+                            companyTaxOffice,
+                            companyTaxNo,
+                            companyTckn,
+                        )
+                        printerDialogVisible = false
+                    },
+                ) { Text("Kaydet") }
+            },
+            dismissButton = {
+                TextButton(onClick = { printerDialogVisible = false }) { Text("Kapat") }
+            },
+        )
     }
 }
 
