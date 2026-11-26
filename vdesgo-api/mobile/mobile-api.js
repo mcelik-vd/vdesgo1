@@ -532,6 +532,10 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
     || !Number.isFinite(locationCapturedAt.getTime())) {
     return { status: 'rejected', code: 'LOCATION_REQUIRED', result: { message: 'Konum kaydı alınmalı ve doğruluğu en fazla 50 metre olmalıdır.' } }
   }
+  const routeDay = body.routeDay?.trim()
+  if (!routeDays.includes(routeDay)) {
+    return { status: 'rejected', code: 'ROUTE_DAY_REQUIRED', result: { message: 'Geçerli bir rut günü seçilmelidir.' } }
+  }
   const identityNumbers = [...new Set([normalizedTaxNo, tckn].filter(Boolean))].sort()
   for (const number of identityNumbers) {
     await client.query(
@@ -552,10 +556,6 @@ export const createMobileCustomer = async (client, req, context, body, fallbackC
   )
   if (!customerType.rowCount) return { status: 'rejected', code: 'INVALID_CUSTOMER_TYPE' }
   const customerTypeName = customerType.rows[0].name
-  const routeDay = body.routeDay?.trim()
-  if (!routeDays.includes(routeDay)) {
-    return { status: 'rejected', code: 'ROUTE_DAY_REQUIRED', result: { message: 'Geçerli bir rut günü seçilmelidir.' } }
-  }
 
   const code = fallbackCode ?? (body.customerCode?.trim() || `MOB-${randomUUID()}`)
   if (typeof code !== 'string' || !/^MOB-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code)

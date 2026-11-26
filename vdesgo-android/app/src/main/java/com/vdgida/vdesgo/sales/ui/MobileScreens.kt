@@ -904,6 +904,8 @@ private fun CustomerListContent(
         }
     }
     var showCreateForm by rememberSaveable { mutableStateOf(false) }
+    var editCustomerOperation by remember { mutableStateOf<OperationSummary?>(null) }
+    var deleteCustomerOperationId by remember { mutableStateOf<String?>(null) }
     val customerSyncIssues = state.operations.filter {
         it.type == "customer.create" && it.status != OperationUiState.ACCEPTED
     }
@@ -928,24 +930,35 @@ private fun CustomerListContent(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         )
         customerSyncIssues.forEach { operation ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (operation.status == OperationUiState.REJECTED) {
-                        MaterialTheme.colorScheme.errorContainer
-                    } else {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    },
-                ),
-            ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "Yeni müşteri kaydı · ${stringResource(operation.status.labelResource)}",
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    operation.error?.let { error ->
-                        Text(
-                            when (error) {
+            val canModify = operation.status in setOf(
+                OperationUiState.PENDING,
+                OperationUiState.REJECTED,
+                OperationUiState.CONFLICT,
+            )
+            SwipeToDeleteDocument(
+                canDelete = canModify,
+                canEdit = canModify,
+                onDelete = { deleteCustomerOperationId = operation.id },
+                onEdit = { editCustomerOperation = operation },
+                content = {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (operation.status == OperationUiState.REJECTED) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            },
+                        ),
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "Yeni müşteri kaydı · ${stringResource(operation.status.labelResource)}",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            operation.error?.let { error ->
+                                Text(
+                                    when (error) {
                                 "DUPLICATE_TAX_NUMBER" -> "Bu vergi numarasıyla kayıtlı müşteri zaten var."
                                 "INVALID_CUSTOMER_TYPE" -> "Seçilen müşteri türü artık geçerli değil."
                                 "INVALID_CREDIT_LIMIT" -> "Maksimum borç bakiyesi sunucu tarafından geçersiz bulundu."
@@ -965,12 +978,14 @@ private fun CustomerListContent(
                                 } else {
                                     error
                                 }
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
                     }
-                }
-            }
+                },
+            )
         }
         if (filtered.isEmpty()) {
             EmptyMessage(
@@ -995,6 +1010,41 @@ private fun CustomerListContent(
             onDismiss = { showCreateForm = false },
         )
     }
+    if (editCustomerOperation != null) {
+        val initialRequest = runCatching {
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                .decodeFromString<CustomerCreateRequest>(editCustomerOperation!!.payload)
+        }.getOrNull()
+        if (initialRequest != null) {
+            NewCustomerDialog(
+                state = state,
+                viewModel = viewModel,
+                initialRequest = initialRequest,
+                editOperationId = editCustomerOperation!!.id,
+                onDismiss = { editCustomerOperation = null },
+            )
+        } else {
+            editCustomerOperation = null
+        }
+    }
+    deleteCustomerOperationId?.let { operationId ->
+        AlertDialog(
+            onDismissRequest = { deleteCustomerOperationId = null },
+            title = { Text("Gönderilmeyen müşteri silinsin mi?") },
+            text = { Text("Yalnızca sunucuya kabul edilmemiş kayıt silinir. Kabul edilmiş müşteri silinmez.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteCustomerOperationId = null
+                        viewModel.deleteCustomerCreation(operationId)
+                    },
+                ) { Text("Sil") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteCustomerOperationId = null }) { Text("Vazgeç") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -1002,22 +1052,37 @@ private fun NewCustomerDialog(
     state: MobileUiState,
     viewModel: AppViewModel,
     onDismiss: () -> Unit,
+    initialRequest: CustomerCreateRequest? = null,
+    editOperationId: String? = null,
 ) {
-    var ownerName by rememberSaveable { mutableStateOf("") }
-    var businessTitle by rememberSaveable { mutableStateOf("") }
-    var phone by rememberSaveable { mutableStateOf("") }
-    var mobilePhone by rememberSaveable { mutableStateOf("") }
-    var taxNo by rememberSaveable { mutableStateOf("") }
-    var tckn by rememberSaveable { mutableStateOf("") }
-    var taxOffice by rememberSaveable { mutableStateOf("") }
-    var address by rememberSaveable { mutableStateOf("") }
-    var creditLimitText by rememberSaveable { mutableStateOf("") }
+    var ownerName by rememberSaveable { mutableStateOf(initialRequest?.ownerName.orEmpty()) }
+    var businessTitle by rememberSaveable { mutableStateOf(initialRequest?.businessTitle.orEmpty()) }
+    var phone by rememberSaveable { mutableStateOf(initialRequest?.phone.orEmpty()) }
+    var mobilePhone by rememberSaveable { mutableStateOf(initialRequest?.mobilePhone.orEmpty()) }
+    var taxNo by rememberSaveable { mutableStateOf(initialRequest?.taxNo.orEmpty()) }
+    var tckn by rememberSaveable { mutableStateOf(initialRequest?.tckn.orEmpty()) }
+    var taxOffice by rememberSaveable { mutableStateOf(initialRequest?.taxOffice.orEmpty()) }
+    var address by rememberSaveable { mutableStateOf(initialRequest?.address.orEmpty()) }
+    var creditLimitText by rememberSaveable {
+        mutableStateOf(initialRequest?.creditLimit?.toString().orEmpty())
+    }
     val creditLimitInput = CreditLimitRules.parseInput(creditLimitText)
-    var capturedLocation by remember { mutableStateOf<LocationReading?>(null) }
+    var capturedLocation by remember {
+        mutableStateOf(
+            initialRequest?.let { request ->
+                LocationReading(
+                    latitude = request.locationLatitude,
+                    longitude = request.locationLongitude,
+                    accuracyM = request.locationAccuracyM,
+                    capturedAt = request.locationCapturedAt,
+                )
+            },
+        )
+    }
     var locationLoading by remember { mutableStateOf(false) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
-    var customerTypeCode by rememberSaveable { mutableStateOf("") }
-    var routeDay by rememberSaveable { mutableStateOf("") }
+    var customerTypeCode by rememberSaveable { mutableStateOf(initialRequest?.customerTypeCode.orEmpty()) }
+    var routeDay by rememberSaveable { mutableStateOf(initialRequest?.routeDay.orEmpty()) }
     var customerTypeMenuExpanded by remember { mutableStateOf(false) }
     var routeDayMenuExpanded by remember { mutableStateOf(false) }
     var taxCheckAttempt by remember { mutableStateOf(0) }
@@ -1217,6 +1282,9 @@ private fun NewCustomerDialog(
                                 }
                             }
                         }
+                        if (customerTypeCode.isBlank()) {
+                            Text("Müşteri tipi seçilmelidir.", color = MaterialTheme.colorScheme.error)
+                        }
                         Box(Modifier.fillMaxWidth()) {
                             OutlinedButton(
                                 onClick = { routeDayMenuExpanded = true },
@@ -1238,6 +1306,9 @@ private fun NewCustomerDialog(
                                     )
                                 }
                             }
+                        }
+                        if (routeDay.isBlank()) {
+                            Text("Rut günü seçilmelidir.", color = MaterialTheme.colorScheme.error)
                         }
                     }
                     OutlinedTextField(
@@ -1269,27 +1340,29 @@ private fun NewCustomerDialog(
                     Button(
                         onClick = {
                             val reading = requireNotNull(capturedLocation)
-                            viewModel.createCustomer(
-                                CustomerCreateRequest(
-                                    ownerName = ownerName.trim(),
-                                    businessTitle = businessTitle.trim(),
-                                    customerTypeCode = customerTypeCode,
-                                    phone = phone.trim(),
-                                    mobilePhone = mobilePhone.trim(),
-                                    taxNo = taxNo.trim(),
-                                    tckn = tckn.trim(),
-                                    taxOffice = taxOffice.trim(),
-                                    address = address.trim(),
-                                    location = "${reading.latitude},${reading.longitude}",
-                                    locationLatitude = reading.latitude,
-                                    locationLongitude = reading.longitude,
-                                    locationAccuracyM = reading.accuracyM,
-                                    locationCapturedAt = reading.capturedAt,
-                                    routeDay = routeDay,
-                                    creditLimit = creditLimitInput.getOrNull(),
-                                ),
-                                onCreated = onDismiss,
+                            val request = CustomerCreateRequest(
+                                ownerName = ownerName.trim(),
+                                businessTitle = businessTitle.trim(),
+                                customerTypeCode = customerTypeCode,
+                                phone = phone.trim(),
+                                mobilePhone = mobilePhone.trim(),
+                                taxNo = taxNo.trim(),
+                                tckn = tckn.trim(),
+                                taxOffice = taxOffice.trim(),
+                                address = address.trim(),
+                                location = "${reading.latitude},${reading.longitude}",
+                                locationLatitude = reading.latitude,
+                                locationLongitude = reading.longitude,
+                                locationAccuracyM = reading.accuracyM,
+                                locationCapturedAt = reading.capturedAt,
+                                routeDay = routeDay,
+                                creditLimit = creditLimitInput.getOrNull(),
                             )
+                            if (editOperationId != null) {
+                                viewModel.editCustomerCreation(editOperationId, request, onEdited = onDismiss)
+                            } else {
+                                viewModel.createCustomer(request, onCreated = onDismiss)
+                            }
                         },
                         enabled = canContinue && customerTypeCode.isNotBlank() && routeDay.isNotBlank() &&
                             creditLimitInput.isSuccess &&

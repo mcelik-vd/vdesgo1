@@ -124,6 +124,7 @@ test('rejects missing or malformed customer identity fields before database writ
   assert.equal((await run({ ...base, taxNo: '', tckn: '' })).code, 'TAX_IDENTITY_REQUIRED')
   assert.equal((await run({ ...base, taxNo: '123' })).code, 'INVALID_VKN')
   assert.equal((await run({ ...base, taxNo: '', tckn: '123' })).code, 'INVALID_TCKN')
+  assert.equal((await run({ ...base, customerTypeCode: 'RETAIL', routeDay: '' })).code, 'ROUTE_DAY_REQUIRED')
 })
 
 test('classifies live database failures instead of hiding all failures as retryable', () => {
